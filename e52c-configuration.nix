@@ -7,6 +7,7 @@
   # This will pull in all the repart logic and related settings.
   imports = [ ./sd-image.nix ];
 
+  nixpkgs.buildPlatform = "x86_64-linux";
   # --- Basic System Configuration ---
   # Keep general settings here.
 
@@ -28,5 +29,5 @@
   ];
 
   # Set the system state version
-  system.stateVersion = "24.11"; # Match the version in your sd-image.nix
+  system.stateVersion = "24.11";
 }
