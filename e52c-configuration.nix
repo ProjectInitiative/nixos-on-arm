@@ -7,7 +7,7 @@
   # This will pull in all the repart logic and related settings.
   imports = [ ./sd-image.nix ];
 
-  nixpkgs.buildPlatform = "x86_64-linux";
+    nixpkgs.buildPlatform = "x86_64-linux";
   # --- Basic System Configuration ---
   # Keep general settings here.
 

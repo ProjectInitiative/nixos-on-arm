@@ -19,6 +19,9 @@ let
 
 in
 {
+  imports = [
+    (modulesPath + "/image/repart.nix")
+  ];
 
   config = {
     image.repart =
