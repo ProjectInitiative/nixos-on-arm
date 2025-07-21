@@ -20,6 +20,7 @@ let
 in
 {
   imports = [
+    (modulesPath + "/profiles/base.nix")
     (modulesPath + "/image/repart.nix")
   ];
 

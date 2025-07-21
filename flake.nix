@@ -9,7 +9,8 @@
     overlays.default = import ./overlays/uboot;
 
     nixosConfigurations.e52c = nixpkgs.lib.nixosSystem {
-      system = "aarch64-linux";
+      # system = "aarch64-linux";
+      nixpkgs.hostPlatform = "aarch64-linux";
       modules = [
         # Import the main configuration
         ./e52c-configuration.nix
