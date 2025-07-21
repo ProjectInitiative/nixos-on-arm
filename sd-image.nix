@@ -9,31 +9,26 @@
 with lib;
 
 let
-  # Define variables for bootloader files and volume labels for clarity.
   ubootIdbloaderFile = "${pkgs.uboot-rk3582-generic}/idbloader.img";
   ubootItbFile = "${pkgs.uboot-rk3582-generic}/u-boot.itb";
   bootVolumeLabel = "NIXOS_BOOT";
   rootVolumeLabel = "NIXOS_ROOT";
+  efiArch = pkgs.stdenv.hostPlatform.efiArch;
 
 in
 {
   imports = [
-    # Import standard NixOS profiles.
     (modulesPath + "/profiles/base.nix")
-    # Import the repart module for creating the disk image.
     (modulesPath + "/image/repart.nix")
   ];
 
   config = {
     # 1. Enable UKI (Unified Kernel Image) Generation.
-    #    We enable systemd-boot not to use it as the loader, but because
-    #    it's the mechanism that triggers NixOS to build a UKI.
     boot.loader.systemd-boot.enable = true;
-    boot.loader.grub.enable = false; # Ensure GRUB is disabled.
-    boot.loader.generic-extlinux-compatible.enable = false; # Not needed for UKI.
+    boot.loader.grub.enable = false;
+    boot.loader.generic-extlinux-compatible.enable = false;
 
     # 2. Configure Kernel and Device Tree.
-    #    The UKI build process will automatically bundle these.
     boot.kernelPackages = pkgs.linuxPackages_latest;
     hardware.deviceTree = {
       enable = true;
@@ -41,7 +36,6 @@ in
     };
 
     # 3. Define Kernel Parameters.
-    #    These will be embedded directly into the UKI.
     boot.kernelParams = [
       "earlycon=uart8250,mmio32,0xfeb50000"
       "rootwait"
@@ -53,17 +47,17 @@ in
     # 4. Define the Disk Image Layout using Repart.
     image.repart =
       let
-        # Helper function to pad files to a 512-byte boundary for raw block copying.
-        pad = file: pkgs.runCommand "${baseNameOf file}-padded" { } ''
-          cp --no-preserve=mode ${file} $out
-          truncate -s %512 $out
+        pad = file: pkgs.runCommand "${baseNameOf file}-padded" {
+          nativeBuildInputs = [ pkgs.coreutils ];
+        } ''
+          dd if=${file} of=$out bs=512 conv=sync
         '';
       in
       {
         name = "nixos-rockchip-image";
         partitions = {
-          # Partition for the first-stage U-Boot bootloader (IDB).
-          "loader1" = {
+          # RENAME partitions to force alphabetical order.
+          "01-loader1" = {
             repartConfig = {
               Label = "loader1";
               Type = "linux-generic";
@@ -71,8 +65,7 @@ in
             };
           };
 
-          # Partition for the second-stage U-Boot bootloader (ITB).
-          "loader2" = {
+          "02-loader2" = {
             repartConfig = {
               Label = "loader2";
               Type = "linux-generic";
@@ -80,32 +73,28 @@ in
             };
           };
 
-          # The boot partition (ESP), which will hold our single UKI file.
-          "boot" = {
+          "03-boot" = {
             contents = {
-              # This is the standard UEFI path that U-Boot will look for.
-              # 'BOOTAA64.EFI' is the conventional name for ARM64 EFI applications.
-              "/EFI/BOOT/BOOTAA64.EFI".source =
-                "${config.system.build.uki}/${config.system.boot.loader.ukiFile}";
+              "/EFI/BOOT/BOOT${lib.toUpper efiArch}.EFI".source = "${pkgs.systemd}/lib/systemd/boot/efi/systemd-boot${efiArch}.efi";
+
+              "/EFI/Linux/${config.system.boot.loader.ukiFile}".source = "${config.system.build.uki}/${config.system.boot.loader.ukiFile}";
             };
             repartConfig = {
               Type = "esp";
               Format = "vfat";
               Label = bootVolumeLabel;
               SizeMinBytes = "256M";
-              Bootable = true; # Mark this partition as bootable.
+              Bootable = true;
             };
           };
 
-          # The main root filesystem partition.
-          "root" = {
+          "04-root" = {
             repartConfig = {
               Type = "root";
               Format = "ext4";
               Label = rootVolumeLabel;
-              Minimize = "guess"; # Automatically shrink to a minimal size.
+              Minimize = "guess";
             };
-            # Include the entire NixOS system closure in this partition.
             storePaths = [ config.system.build.toplevel ];
           };
         };
