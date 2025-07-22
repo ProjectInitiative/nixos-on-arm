@@ -114,7 +114,7 @@ in
 
     # F. First boot partition resizing.
     #    This script runs on first boot to expand the root partition to fill the disk.
-        boot.postBootCommands = lib.mkBefore ''
+    boot.postBootCommands = lib.mkBefore ''
       # On the first boot, do some maintenance tasks.
       # This script runs in a minimal environment, so we provide full paths to all commands.
       if [ -f /nix-path-registration ]; then
@@ -190,7 +190,6 @@ in
       parted
       cloud-utils
       e2fsprogs
-      emptyBootDir
     ];
   };
 }
