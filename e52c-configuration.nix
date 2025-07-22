@@ -1,34 +1,94 @@
-# configuration.nix
-
+# configuration.nix - Fixed and Simplified!
 { config, pkgs, ... }:
-
 {
-  # Import your new sd-image module.
-  # This will pull in all the repart logic and related settings.
-  imports = [ ./sd-image.nix ];
-
+  imports = [ 
+    ./modules/rockchip-image.nix 
+  ];
+  
+  # Platform configuration
   nixpkgs.buildPlatform = "x86_64-linux";
   nixpkgs.hostPlatform = "aarch64-linux";
-  # --- Basic System Configuration ---
-  # Keep general settings here.
-
+  
+  # Rockchip board configuration
+  rockchip = {
+    enable = true;
+    board = "rk3582-radxa-e52c";
+    
+    # U-Boot package - will use board default if not specified
+    uboot.package = pkgs.uboot-rk3582-generic;
+    
+    # Device tree - will use board default if not specified
+    deviceTree.name = "rockchip/rk3582-radxa-e52c.dtb";
+    
+    # Optional: customize console settings (uses board defaults if not specified)
+    console = {
+      earlycon = "uart8250,mmio32,0xfeb50000";
+      console = "ttyS4,1500000";
+    };
+    
+    # Configure which image variants to build
+    image.buildVariants = {
+      full = true;       # Build full eMMC image with U-Boot (nixos-e52c-full.img)
+      sdcard = true;     # Build SD card image without U-Boot (os-only.img)  
+      ubootOnly = false; # Don't build U-Boot only image
+    };
+    
+    # Optional: customize image layout
+    image.bootPartitionStartMB = 16;    # Boot partition starts at 16MB for full image
+    image.osBootPartitionStartMB = 1;   # Boot partition starts at 1MB for SD card image
+  };
+  
+  # Basic system configuration
   networking.hostName = "nixos-rockchip";
   time.timeZone = "Etc/UTC";
-
-  # Define a user account
+  
+  # User accounts
   users.users.root.initialHashedPassword = "";
   users.users.nixos = {
     isNormalUser = true;
-    extraGroups = [ "wheel" ]; # Enable sudo
+    extraGroups = [ "wheel" ];
     initialHashedPassword = "";
   };
-
-  # Minimal packages to include in the image
+  
+  # System packages
   environment.systemPackages = with pkgs; [
     vim
     git
+    htop
+    tree
   ];
-
-  # Set the system state version
+  
+  # SSH access
+  services.openssh = {
+    enable = true;
+    settings.PermitRootLogin = "yes";
+  };
+  
+  # Enable NetworkManager for easier network setup
+  networking.networkmanager.enable = true;
+  
+  # Nix configuration
+  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  
   system.stateVersion = "24.11";
 }
+
+# Build Instructions:
+#
+# To build all configured image variants:
+#   nix-build -A config.system.build.rockchipImages
+#
+# To build just the default/primary image:
+#   nix-build -A config.system.build.image
+#
+# Output files will be in result/:
+#   - nixos-e52c-full.img  (full eMMC image with U-Boot)
+#   - os-only.img          (SD card image without U-Boot)
+#   - default.img          (symlink to primary image)
+#
+# For eMMC flashing, use nixos-e52c-full.img
+# For SD card, use os-only.img
+#
+# Flash with:
+#   sudo dd if=result/nixos-e52c-full.img of=/dev/mmcblk0 bs=1M status=progress
+#   sudo dd if=result/os-only.img of=/dev/sdb bs=1M status=progress
