@@ -75,6 +75,8 @@
   };
   
   # Enable NetworkManager for easier network setup
+  # enP4p65s0 - LAN
+  # enP3p49s0 - WAN
   networking = {
     networkmanager = {
         enable = true;
