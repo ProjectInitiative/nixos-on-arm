@@ -33,9 +33,6 @@
       ubootOnly = false; # Don't build U-Boot only image
     };
     
-    # Optional: customize image layout
-    image.bootPartitionStartMB = 16;    # Boot partition starts at 16MB for full image
-    image.osBootPartitionStartMB = 1;   # Boot partition starts at 1MB for SD card image
   };
   
   # Basic system configuration

@@ -16,7 +16,7 @@
     nixosConfigurations.e52c = nixpkgs.lib.nixosSystem {
       # system = "aarch64-linux";
       modules = [
-        disko.nixosModules.disko
+        # disko.nixosModules.disko
         # Import the main configuration
         ./e52c-configuration.nix
         # ./boot-test.nix

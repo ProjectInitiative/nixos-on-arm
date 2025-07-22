@@ -1,281 +1,82 @@
-# modules/rockchip-image.nix - Proper NixOS Module
+# modules/rockchip-image.nix - Final Manual Build Version
 { config, lib, pkgs, modulesPath, ... }:
 
 with lib;
 
 let
   cfg = config.rockchip;
-  
-  # Board-specific configurations
-  boardConfigs = {
-    "rk3582-radxa-e52c" = {
-      deviceTree = "rockchip/rk3582-radxa-e52c.dtb";
-      defaultUboot = pkgs.uboot-rk3582-generic or null;
-      defaultConsole = {
-        earlycon = "uart8250,mmio32,0xfeb50000";
-        console = "ttyS4,1500000";
-      };
-    };
-  };
-  
-  # Get board config with fallback
-  boardConfig = boardConfigs.${cfg.board} or {
-    deviceTree = null;
-    defaultUboot = null;
-    defaultConsole = {
-      earlycon = "earlycon";
-      console = "ttyS0,115200";
-    };
-  };
-  
-  # Console settings with fallback to board defaults
-  consoleSettings = {
-    earlycon = cfg.console.earlycon or boardConfig.defaultConsole.earlycon;
-    console = cfg.console.console or boardConfig.defaultConsole.console;
-  };
-  
-  # U-Boot package with validation
-  ubootPackage = 
-    if cfg.uboot.package != null then cfg.uboot.package
-    else if boardConfig.defaultUboot != null then boardConfig.defaultUboot
-    else throw "No U-Boot package specified for board ${cfg.board}";
-  
-  # Device tree name with validation
-  deviceTreeName = 
-    if cfg.deviceTree.name != null then cfg.deviceTree.name
-    else if boardConfig.deviceTree != null then boardConfig.deviceTree
-    else throw "No device tree specified for board ${cfg.board}";
-  
-  # Volume labels
-  bootVolumeLabel = "NIXOS_BOOT";
-  rootVolumeLabel = "NIXOS_ROOT";
-  efiArch = pkgs.stdenv.hostPlatform.efiArch;
-  
-  # Import the monolithic assembler
-  assembleMonolithicImage = import ../assemble-monolithic-image.nix;
-
+  ubootPackage = cfg.uboot.package;
+  # Import the monolithic assembler, which will now build the entire image
+  assembleMonolithicImage = import ./assemble-monolithic-image.nix { inherit pkgs lib; };
 in
 {
-  ###### Interface
+  # REMOVED: No longer importing repart.nix
+  imports = [
+    (modulesPath + "/profiles/base.nix")
+  ];
+
+  ###### Interface ######
   options = {
     rockchip = {
       enable = mkEnableOption "Rockchip SoC support";
-      
-      board = mkOption {
-        type = types.str;
-        example = "rk3582-radxa-e52c";
-        description = "Rockchip board identifier";
-      };
-      
-      uboot = {
-        package = mkOption {
-          type = types.nullOr types.package;
-          default = null;
-          description = "U-Boot package to use. If null, will try to use board default.";
-        };
-      };
-      
-      deviceTree = {
-        name = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          example = "rockchip/rk3582-radxa-e52c.dtb";
-          description = "Device tree blob name. If null, will try to use board default.";
-        };
-      };
-      
-      console = {
-        earlycon = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          example = "uart8250,mmio32,0xfeb50000";
-          description = "Early console configuration";
-        };
-        
-        console = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          example = "ttyS4,1500000";
-          description = "Main console configuration";
-        };
-      };
-      
+      board = mkOption { type = types.str; default = "rk3582-radxa-e52c"; };
+      uboot.package = mkOption { type = types.package; };
       image = {
+        name = mkOption { type = types.str; default = "nixos-rockchip"; };
+        sizeMB = mkOption { type = types.int; default = 4096; };
+        bootOffsetMB = mkOption { type = types.int; default = 16; };
+        bootSizeMB = mkOption { type = types.int; default = 112; };
         buildVariants = {
-          full = mkOption {
-            type = types.bool;
-            default = true;
-            description = "Build full eMMC-style image with U-Boot";
-          };
-          
-          sdcard = mkOption {
-            type = types.bool;
-            default = false;
-            description = "Build SD card image without U-Boot";
-          };
-          
-          ubootOnly = mkOption {
-            type = types.bool;
-            default = false;
-            description = "Build U-Boot only image";
-          };
+          full = mkOption { type = types.bool; default = true; };
+          sdcard = mkOption { type = types.bool; default = false; };
+          ubootOnly = mkOption { type = types.bool; default = false; };
         };
-        
-        bootPartitionStartMB = mkOption {
-          type = types.int;
-          default = 16;
-          description = "Boot partition start offset in MB for full images";
-        };
-        
-        osBootPartitionStartMB = mkOption {
-          type = types.int;
-          default = 1;
-          description = "Boot partition start offset in MB for OS-only images";
-        };
+      };
+      # Other options like deviceTree and console are kept for consistency but not used in this build method
+      deviceTree = { name = mkOption { type = types.nullOr types.str; default = null; }; };
+      console = {
+        earlycon = mkOption { type = types.nullOr types.str; default = null; };
+        console = mkOption { type = types.nullOr types.str; default = null; };
       };
     };
   };
 
-  ###### Implementation
+  ###### Implementation ######
   config = mkIf cfg.enable {
-    
-    # Validate configuration
-    assertions = [
-      {
-        assertion = cfg.board != "";
-        message = "rockchip.board must be specified";
-      }
-      {
-        assertion = ubootPackage != null;
-        message = "No U-Boot package available for board ${cfg.board}";
-      }
-      {
-        assertion = deviceTreeName != null;
-        message = "No device tree specified for board ${cfg.board}";
-      }
-    ];
-
-    # Import base modules
-    imports = [
-      (modulesPath + "/profiles/base.nix")
-      (modulesPath + "/image/repart.nix")
-    ];
-
     # 1. Boot loader configuration - Use UKI
     boot.loader.systemd-boot.enable = true;
     boot.loader.grub.enable = false;
-    boot.loader.generic-extlinux-compatible.enable = false;
 
-    # 2. Kernel and hardware configuration
-    boot.kernelPackages = pkgs.linuxPackages_latest;
-    hardware.deviceTree = {
-      enable = true;
-      name = deviceTreeName;
-    };
-
-    # 3. Kernel parameters
-    boot.kernelParams = [
-      "earlycon=${consoleSettings.earlycon}"
-      "rootwait"
-      "root=/dev/disk/by-label/${rootVolumeLabel}"
-      "rw"
-      "ignore_loglevel"
-      "console=${consoleSettings.console}"
-    ];
-
-    # 4. Configure repart for filesystem images
-    image.repart = {
-      enable = true;
-      name = "nixos-rockchip-rootfs";
-      
-      partitions = {
-        # Boot partition with UKI
-        "10-boot" = {
-          contents = {
-            "/EFI/BOOT/BOOT${lib.toUpper efiArch}.EFI".source = 
-              "${config.system.build.uki}/${config.system.boot.loader.ukiFile}";
-          };
-          repartConfig = {
-            Type = "esp";
-            Format = "vfat";
-            Label = bootVolumeLabel;
-            SizeMinBytes = "100M";
-            SizeMaxBytes = "200M";
-          };
-        };
-        
-        # Root partition with NixOS
-        "20-root" = {
-          storePaths = [ config.system.build.toplevel ];
-          repartConfig = {
-            Type = "root";
-            Format = "ext4";
-            Label = rootVolumeLabel;
-            Minimize = "guess";
-          };
-        };
-      };
-    };
-
-    # 5. Build Rockchip images
+    # 2. Define the image build process using the robust assembler
     system.build.rockchipImages = assembleMonolithicImage {
-      inherit pkgs lib;
-      
-      # U-Boot components
+      # Pass U-Boot and OS components
       ubootIdbloaderFile = "${ubootPackage}/idbloader.img";
       ubootItbFile = "${ubootPackage}/u-boot.itb";
-      
-      # Filesystem images from repart
-      nixosBootImageFile = "${config.system.build.repart}/10-boot.raw";
-      nixosRootfsImageFile = "${config.system.build.repart}/20-root.raw";
-      
-      # Build variants based on configuration
+      ukiFile = "${config.system.build.uki}/${config.system.boot.loader.ukiFile}";
+      systemToplevel = config.system.build.toplevel;
+
+      # Pass image layout configuration
+      imageName = cfg.image.name;
+      imageSizeMB = cfg.image.sizeMB;
+      bootOffsetMB = cfg.image.bootOffsetMB;
+      bootSizeMB = cfg.image.bootSizeMB;
+
+      # Pass build variant flags
       buildFullImage = cfg.image.buildVariants.full;
       buildOsImage = cfg.image.buildVariants.sdcard;
       buildUbootImage = cfg.image.buildVariants.ubootOnly;
-      
-      # Image layout configuration
-      bootPartitionStartMB = cfg.image.bootPartitionStartMB;
-      osBootPartitionStartMB = cfg.image.osBootPartitionStartMB;
-      
-      # Partition labels
-      bootPartitionLabel = bootVolumeLabel;
-      rootPartitionLabel = rootVolumeLabel;
     };
 
-    # 6. Set the primary system image
-    system.build.image = mkMerge [
-      # If building multiple variants, use the rockchipImages build
-      (mkIf (cfg.image.buildVariants.full || cfg.image.buildVariants.sdcard || cfg.image.buildVariants.ubootOnly) 
-        config.system.build.rockchipImages)
-      
-      # If only using repart, keep the repart image as fallback
-      (mkIf (!cfg.image.buildVariants.full && !cfg.image.buildVariants.sdcard && !cfg.image.buildVariants.ubootOnly) 
-        (mkDefault config.system.build.repart))
-    ];
+    # 3. Set a convenient default build target
+    system.build.image = config.system.build.rockchipImages;
 
-    # 7. Filesystem configuration
+    # 4. Filesystem configuration for the running NixOS system
     fileSystems = {
-      "/" = { 
-        device = "/dev/disk/by-label/${rootVolumeLabel}"; 
-        fsType = "ext4"; 
-      };
-      "/boot" = { 
-        device = "/dev/disk/by-label/${bootVolumeLabel}"; 
-        fsType = "vfat"; 
-      };
+      "/" = { device = "/dev/disk/by-label/NIXOS_ROOT"; fsType = "ext4"; };
+      "/boot" = { device = "/dev/disk/by-label/NIXOS_BOOT"; fsType = "vfat"; };
     };
 
-    # 8. Kernel modules for Rockchip
-    boot.initrd.availableKernelModules = [
-      "usbhid" "usb_storage" "sd_mod" "mmc_block" "dw_mmc_rockchip"
-      "ext4" "vfat" "nls_cp437" "nls_iso8859-1"
-      "usbnet" "cdc_ether" "rndis_host"
-      # Additional Rockchip-specific modules
-      "rockchip_rga" "rockchip_saradc" "rockchip_thermal"
-    ];
-
-    # 9. First boot partition resizing
+    # 5. First boot partition resizing (preserved from your original file)
     boot.postBootCommands = lib.mkBefore ''
       ${pkgs.runtimeShell}/bin/sh -c '
         if [ -f /etc/NIXOS_FIRST_BOOT ]; then
@@ -288,7 +89,7 @@ in
           rootPartDev=$($FINDMNT -n -o SOURCE /)
           rootDevice=$(echo "$rootPartDev" | sed "s/p\?[0-9]*$//")
           partNum=$(echo "$rootPartDev" | sed "s|^$rootDevice||" | sed "s/p//")
-          
+         
           if $GROWPART "$rootDevice" "$partNum"; then
             echo "Partition expanded, resizing filesystem..."
             $RESIZE2FS "$rootPartDev"
@@ -304,31 +105,11 @@ in
     '';
     environment.etc."NIXOS_FIRST_BOOT".text = "";
 
-    # 10. Hardware and system packages
-    hardware.firmware = with pkgs; [ firmwareLinuxNonfree ];
+    # 6. Ensure necessary packages are available in the final image
     environment.systemPackages = with pkgs; [
-      coreutils
-      util-linux
-      iproute2
-      parted
       cloud-utils
       e2fsprogs
-      # Additional useful tools for embedded systems
-      usbutils
-      pciutils
-      htop
+      util-linux # For findmnt
     ];
-
-    # 11. Default services for embedded systems
-    services.openssh = mkDefault { 
-      enable = true; 
-      settings.PermitRootLogin = mkDefault "yes"; 
-    };
-    
-    # Enable network manager for easier network setup
-    networking.networkmanager.enable = mkDefault true;
-    
-    # Nix configuration
-    nix.settings.experimental-features = mkDefault [ "nix-command" "flakes" ];
   };
 }
