@@ -26,7 +26,7 @@
 pkgs.stdenv.mkDerivation {
   name = imageName;
   nativeBuildInputs = [
-    (pkgs.buildPackages.nix)
+    pkgs.nix
     pkgs.coreutils
     pkgs.gptfdisk
     pkgs.e2fsprogs
@@ -34,17 +34,16 @@ pkgs.stdenv.mkDerivation {
     pkgs.util-linux
   ];
 
-  # Pass all inputs into the script environment
-  inherit
-    ubootIdbloaderFile ubootItbFile ukiFile systemToplevel
-    imageSizeMB bootOffsetMB bootSizeMB
-    idbloaderOffsetSectors itbOffsetSectors;
-
   # Skip unpack phase since we don't have source to unpack
   dontUnpack = true;
 
   buildPhase = ''
     set -euxo pipefail
+
+    echo "=== Build Phase Starting ==="
+    echo "buildFullImage: ${lib.boolToString buildFullImage}"
+    echo "buildOsImage: ${lib.boolToString buildOsImage}"  
+    echo "buildUbootImage: ${lib.boolToString buildUbootImage}"
 
     # --- Helper: Create and populate a full disk image ---
     function build_full_image {
@@ -55,8 +54,8 @@ pkgs.stdenv.mkDerivation {
       dd if=/dev/zero of="$img_name" bs=1M count=${toString imageSizeMB} status=progress
 
       echo "Writing U-Boot binaries to raw offsets..."
-      dd if="$ubootIdbloaderFile" of="$img_name" bs=512 seek=${toString idbloaderOffsetSectors} conv=notrunc
-      dd if="$ubootItbFile"      of="$img_name" bs=512 seek=${toString itbOffsetSectors} conv=notrunc
+      dd if="${ubootIdbloaderFile}" of="$img_name" bs=512 seek=${toString idbloaderOffsetSectors} conv=notrunc
+      dd if="${ubootItbFile}" of="$img_name" bs=512 seek=${toString itbOffsetSectors} conv=notrunc
 
       local boot_offset_sectors=$(( ${toString bootOffsetMB} * 1024 * 1024 / 512))
       local boot_size_sectors=$(( ${toString bootSizeMB} * 1024 * 1024 / 512))
@@ -70,21 +69,24 @@ pkgs.stdenv.mkDerivation {
       mkfs.vfat -F 32 -n "NIXOS_BOOT" "''${loopDevice}p1"
       mkfs.ext4 -L "NIXOS_ROOT" -E lazy_itable_init=0,lazy_journal_init=0 "''${loopDevice}p2"
 
-      local rootMnt="/mnt"
+      local rootMnt=$(mktemp -d)
       mount "''${loopDevice}p2" "$rootMnt"
       mkdir -p "$rootMnt/boot"
       mount "''${loopDevice}p1" "$rootMnt/boot"
 
       mkdir -p "$rootMnt/nix/store"
-      nix-store -qR "$systemToplevel" | xargs -r cp -at "$rootMnt/nix/store"
+      nix-store -qR "${systemToplevel}" | xargs -r cp -at "$rootMnt/nix/store"
       mkdir -p "$rootMnt/nix/var/nix/profiles"
-      ln -s "$systemToplevel" "$rootMnt/nix/var/nix/profiles/system"
+      ln -s "${systemToplevel}" "$rootMnt/nix/var/nix/profiles/system"
       mkdir -p "$rootMnt/boot/EFI/BOOT"
-      cp "$ukiFile" "$rootMnt/boot/EFI/BOOT/BOOT${lib.toUpper pkgs.stdenv.hostPlatform.efiArch}.EFI"
+      cp "${ukiFile}" "$rootMnt/boot/EFI/BOOT/BOOT${lib.toUpper pkgs.stdenv.hostPlatform.efiArch}.EFI"
 
       sync
       umount -R "$rootMnt"
       losetup -d "$loopDevice"
+      rmdir "$rootMnt"
+
+      echo "Full image '$img_name' created successfully"
     }
 
     # --- Helper: Create an OS-only image (no bootloaders) ---
@@ -114,24 +116,25 @@ pkgs.stdenv.mkDerivation {
       mkfs.vfat -F 32 -n "NIXOS_BOOT" "''${loopDevice}p1"
       mkfs.ext4 -L "NIXOS_ROOT" -E lazy_itable_init=0,lazy_journal_init=0 "''${loopDevice}p2"
 
-      local rootMnt="/mnt"
+      local rootMnt=$(mktemp -d)
       mount "''${loopDevice}p2" "$rootMnt"
       mkdir -p "$rootMnt/boot"
       mount "''${loopDevice}p1" "$rootMnt/boot"
 
       echo "Populating NixOS system..."
       mkdir -p "$rootMnt/nix/store"
-      nix-store -qR "$systemToplevel" | xargs -r cp -at "$rootMnt/nix/store"
+      nix-store -qR "${systemToplevel}" | xargs -r cp -at "$rootMnt/nix/store"
       mkdir -p "$rootMnt/nix/var/nix/profiles"
-      ln -s "$systemToplevel" "$rootMnt/nix/var/nix/profiles/system"
+      ln -s "${systemToplevel}" "$rootMnt/nix/var/nix/profiles/system"
       mkdir -p "$rootMnt/boot/EFI/BOOT"
-      cp "$ukiFile" "$rootMnt/boot/EFI/BOOT/BOOT${lib.toUpper pkgs.stdenv.hostPlatform.efiArch}.EFI"
+      cp "${ukiFile}" "$rootMnt/boot/EFI/BOOT/BOOT${lib.toUpper pkgs.stdenv.hostPlatform.efiArch}.EFI"
 
       sync
       umount -R "$rootMnt"
       losetup -d "$loopDevice"
+      rmdir "$rootMnt"
 
-      echo "OS-only image complete. Note: This image requires external bootloader installation."
+      echo "OS-only image '$img_name' complete. Note: This image requires external bootloader installation."
     }
 
     # --- Helper: Create a U-Boot only image ---
@@ -140,28 +143,55 @@ pkgs.stdenv.mkDerivation {
         local min_uboot_size_mb=16
         echo "--- Building U-Boot only image: $img_name ---"
         truncate -s ''${min_uboot_size_mb}M "$img_name"
-        dd if="$ubootIdbloaderFile" of="$img_name" bs=512 seek=${toString idbloaderOffsetSectors} conv=notrunc
-        dd if="$ubootItbFile"      of="$img_name" bs=512 seek=${toString itbOffsetSectors} conv=notrunc
+        dd if="${ubootIdbloaderFile}" of="$img_name" bs=512 seek=${toString idbloaderOffsetSectors} conv=notrunc
+        dd if="${ubootItbFile}" of="$img_name" bs=512 seek=${toString itbOffsetSectors} conv=notrunc
+        echo "U-Boot only image '$img_name' created successfully"
     }
 
     # --- Main Execution ---
-    if [[ "${toString buildFullImage}" == "true" ]]; then
-        build_full_image "nixos-rockchip-full.img"
-    fi
-    if [[ "${toString buildOsImage}" == "true" ]]; then
-        build_os_image "nixos-rockchip-os-only.img"
-    fi
-    if [[ "${toString buildUbootImage}" == "true" ]]; then
-        build_uboot_image "uboot-only.img"
-    fi
+    echo "=== Starting image build process ==="
+    
+    ${lib.optionalString buildFullImage ''
+      echo "Building full image..."
+      build_full_image "nixos-rockchip-full.img"
+    ''}
+    
+    ${lib.optionalString buildOsImage ''
+      echo "Building OS-only image..."
+      build_os_image "nixos-rockchip-os-only.img"
+    ''}
+    
+    ${lib.optionalString buildUbootImage ''
+      echo "Building U-Boot only image..."
+      build_uboot_image "uboot-only.img"
+    ''}
+
+    echo "=== Build phase completed ==="
+    ls -la *.img || echo "No image files found!"
   '';
 
   installPhase = ''
     mkdir -p $out
+    
     # Copy any images that were built to the output directory
-    if [[ -f "nixos-rockchip-full.img" ]]; then cp "nixos-rockchip-full.img" $out/; fi
-    if [[ -f "nixos-rockchip-os-only.img" ]]; then cp "nixos-rockchip-os-only.img" $out/; fi
-    if [[ -f "uboot-only.img" ]]; then cp "uboot-only.img" $out/; fi
+    if [[ -f "nixos-rockchip-full.img" ]]; then 
+      echo "Copying nixos-rockchip-full.img to output"
+      cp "nixos-rockchip-full.img" $out/
+    fi
+    
+    if [[ -f "nixos-rockchip-os-only.img" ]]; then 
+      echo "Copying nixos-rockchip-os-only.img to output"
+      cp "nixos-rockchip-os-only.img" $out/
+    fi
+    
+    if [[ -f "uboot-only.img" ]]; then 
+      echo "Copying uboot-only.img to output" 
+      cp "uboot-only.img" $out/
+    fi
+
+    echo "=== Install phase completed ==="
+    echo "Output directory contents:"
+    ls -la $out/
   '';
 
   dontStrip = true;
