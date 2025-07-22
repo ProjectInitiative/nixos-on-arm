@@ -114,42 +114,83 @@ in
 
     # F. First boot partition resizing.
     #    This script runs on first boot to expand the root partition to fill the disk.
-    boot.postBootCommands = lib.mkBefore ''
-      if [ -f /etc/NIXOS_FIRST_BOOT ]; then
-        set -euo pipefail; set -x;
-        GROWPART="${pkgs.cloud-utils}/bin/growpart"
-        RESIZE2FS="${pkgs.e2fsprogs}/bin/resize2fs"
-        FINDMNT="${pkgs.util-linux}/bin/findmnt"
-        
-        echo "First boot detected, expanding root partition..."
-        # Find the root partition device (e.g., /dev/mmcblk0p2)
-        rootPartDev=$($FINDMNT -n -o SOURCE /)
-        # Find the block device (e.g., /dev/mmcblk0)
-        rootDevice=$(echo "$rootPartDev" | sed "s/p\?[0-9]*$//")
-        # Find the partition number (e.g., 2)
-        partNum=$(echo "$rootPartDev" | sed "s|^$rootDevice||" | sed "s/p//")
-       
-        if $GROWPART "$rootDevice" "$partNum"; then
-          echo "Partition expanded, resizing filesystem..."
-          $RESIZE2FS "$rootPartDev"
+        boot.postBootCommands = lib.mkBefore ''
+      # On the first boot, do some maintenance tasks.
+      # This script runs in a minimal environment, so we provide full paths to all commands.
+      if [ -f /nix-path-registration ]; then
+        # Set bash options for safety: exit on error, exit on unset variable, pipefail.
+        set -euo pipefail
+        # Enable command echoing for debugging.
+        set -x
+
+        # --- Define full paths to all our tools upfront for clarity ---
+        local FINDMNT="${pkgs.util-linux}/bin/findmnt"
+        local LSBLK="${pkgs.util-linux}/bin/lsblk"
+        local ECHO="${pkgs.coreutils}/bin/echo"
+        local SED="${pkgs.gnused}/bin/sed"
+        local SFDISK="${pkgs.util-linux}/bin/sfdisk"
+        local GROWPART="${pkgs.cloud-utils}/bin/growpart"
+        local PARTPROBE="${pkgs.parted}/bin/partprobe"
+        local RESIZE2FS="${pkgs.e2fsprogs}/bin/resize2fs"
+        local SLEEP="${pkgs.coreutils}/bin/sleep"
+        local RM="${pkgs.coreutils}/bin/rm"
+        local SYNC="${pkgs.coreutils}/bin/sync"
+        local NIX_STORE="${config.nix.package.out}/bin/nix-store"
+        local NIX_ENV="${config.nix.package.out}/bin/nix-env"
+
+
+        # --- Script Logic ---
+        local rootPartDev=$($FINDMNT -n -o SOURCE /)
+        local bootDevice=$($LSBLK -npo PKNAME "$rootPartDev")
+        # Extract partition number robustly.
+        local partNum=$($ECHO "$rootPartDev" | $SED -E 's|^.*[^0-9]([0-9]+)$|\1|')
+
+        $ECHO "Root partition device: ''${rootPartDev}, Boot device: ''${bootDevice}, Root Partition number: ''${partNum}"
+
+        # Attempt to resize the root partition.
+        $ECHO "Attempting resize with growpart..."
+        # Note: The 'command -v' check is tricky in this environment. We'll just try growpart directly.
+        # If cloud-utils is in systemPackages (which it is), growpart should be in the PATH set up for this script.
+        # But for max safety, we call it by its full path.
+        if $GROWPART "''${bootDevice}" "''${partNum}"; then
+            $ECHO "growpart succeeded."
         else
-          echo "Partition expansion failed or was not needed."
+            $ECHO "[WARNING] growpart failed, attempting sfdisk as fallback..."
+            $ECHO ",+," | $SFDISK -N"''${partNum}" --no-reread "''${bootDevice}"
         fi
-        
-        # Remove the flag file to prevent this script from running again.
-        rm -f /etc/NIXOS_FIRST_BOOT
-        sync
-        echo "First boot setup completed."
+
+        $ECHO "Running partprobe on ''${bootDevice}..."
+        $PARTPROBE "''${bootDevice}" || $ECHO "[WARNING] partprobe on ''${bootDevice} encountered an issue."
+        $SLEEP 3 # Give kernel time to recognize changes.
+
+        $ECHO "Resizing filesystem on ''${rootPartDev}..."
+        $RESIZE2FS "''${rootPartDev}"
+
+        $ECHO "Registering Nix paths..."
+        $NIX_STORE --load-db < /nix-path-registration
+
+        $ECHO "Setting up system profile..."
+        $NIX_ENV -p /nix/var/nix/profiles/system --set /run/current-system
+
+        $ECHO "Cleaning up first-boot flag..."
+        $RM -f /nix-path-registration
+        $SYNC
+
+        $ECHO "First boot setup complete."
+        set +x
       fi
     '';
-    # This creates the flag file that the postBootCommands script checks for.
-    environment.etc."NIXOS_FIRST_BOOT".text = "";
+
 
     # G. Ensure necessary packages for the postBootCommands script are in the image.
     environment.systemPackages = with pkgs; [
-      cloud-utils # For growpart
-      e2fsprogs   # For resize2fs
-      util-linux  # For findmnt
+      coreutils
+      util-linux
+      iproute2
+      parted
+      cloud-utils
+      e2fsprogs
+      emptyBootDir
     ];
   };
 }
