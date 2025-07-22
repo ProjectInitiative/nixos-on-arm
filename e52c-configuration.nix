@@ -1,5 +1,5 @@
 # configuration.nix - Fixed and Simplified!
-{ config, pkgs, ... }:
+{ config, pkgs, lib, ... }:
 {
   imports = [ 
     ./modules/rockchip-image.nix 
@@ -8,6 +8,12 @@
   # Platform configuration
   nixpkgs.buildPlatform = "x86_64-linux";
   nixpkgs.hostPlatform = "aarch64-linux";
+
+  boot.initrd.availableKernelModules = [
+    "dw_mmc_rockchip"  # Specific driver for Rockchip SD/eMMC controllers
+    "usbnet" "cdc_ether" "rndis_host" # Drivers for USB-based networking
+  ];
+  
   
   # Rockchip board configuration
   rockchip = {
@@ -18,7 +24,7 @@
     uboot.package = pkgs.uboot-rk3582-generic;
     
     # Device tree - will use board default if not specified
-    deviceTree.name = "rockchip/rk3582-radxa-e52c.dtb";
+    deviceTree = "rockchip/rk3582-radxa-e52c.dtb";
     
     # Optional: customize console settings (uses board defaults if not specified)
     console = {
@@ -69,7 +75,12 @@
   };
   
   # Enable NetworkManager for easier network setup
-  networking.networkmanager.enable = true;
+  networking = {
+    networkmanager = {
+        enable = true;
+      };
+    useDHCP = lib.mkForce true;
+  };
   
   # Nix configuration
   nix.settings.experimental-features = [ "nix-command" "flakes" ];

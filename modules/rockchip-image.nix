@@ -34,7 +34,7 @@ in
         };
       };
       # These options are preserved for future use, but not directly used by the UKI boot method
-      deviceTree = { name = mkOption { type = types.nullOr types.str; default = null; }; };
+      deviceTree = mkOption { type = types.nullOr types.str; default = null; };
       console = {
         earlycon = mkOption { type = types.nullOr types.str; default = null; };
         console = mkOption { type = types.nullOr types.str; default = null; };
@@ -50,6 +50,12 @@ in
     boot.kernelPackages = pkgs.linuxPackages_latest;
     boot.loader.systemd-boot.enable = true;
     boot.loader.grub.enable = false;
+    hardware.firmware = with pkgs; [ firmwareLinuxNonfree ];
+
+    hardware.deviceTree = mkIf (cfg.deviceTree != null) {
+      enable = true;
+      name = cfg.deviceTree;
+    };
 
     # B. Build the boot (VFAT) and root (EXT4) partition images.
     #    These will be the building blocks for the final monolithic image.
