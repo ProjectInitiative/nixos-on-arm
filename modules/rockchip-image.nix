@@ -44,6 +44,7 @@ in
   ###### Implementation ######
   config = mkIf cfg.enable {
     # 1. Boot loader configuration - Use UKI
+    boot.kernelPackages = pkgs.linuxPackages_latest;
     boot.loader.systemd-boot.enable = true;
     boot.loader.grub.enable = false;
 
