@@ -1,197 +1,175 @@
-# assemble-monolithic-image.nix
-{ pkgs, lib }:
+{ pkgs, lib,
+  # U-Boot components
+  ubootIdbloaderFile,
+  ubootItbFile,
 
-{ # U-Boot and OS components
-  ubootIdbloaderFile
-, ubootItbFile
-, ukiFile
-, systemToplevel
+  # Pre-built filesystem images
+  nixosBootImageFile,
+  nixosRootfsImageFile,
 
   # Build variant flags
-, buildFullImage ? true
-, buildOsImage ? false
-, buildUbootImage ? false
+  buildFullImage ? true,
+  buildOsImage ? false,
+  buildUbootImage ? false,
 
-  # Image layout configuration
-, imageName ? "nixos-rockchip-image"
-, imageSizeMB ? 4096
-, bootOffsetMB ? 16
-, bootSizeMB ? 112
+  # Image layout config
+  imageName ? "nixos-rockchip-image",
+  imagePaddingMB ? 100,
+  fullImageBootOffsetMB ? 16,
+  osImageBootOffsetMB ? 1,
 
-  # Bootloader raw offsets (in 512-byte sectors)
-, idbloaderOffsetSectors ? 64
-, itbOffsetSectors ? 16384
+  # U-Boot raw offsets (in 512-byte sectors)
+  idbloaderOffsetSectors ? 64,
+  itbOffsetSectors ? 16384
 }:
 
-pkgs.stdenv.mkDerivation {
-  name = imageName;
+let
+  alignmentUnitBytes = 1 * 1024 * 1024; # 1MiB
+  bytesToSectors = bytes: builtins.floor (bytes / 512);
+
+  fullImgBootPartitionStartBytes = fullImageBootOffsetMB * 1024 * 1024;
+  fullImgBootPartitionStartSectors = bytesToSectors fullImgBootPartitionStartBytes;
+
+  osImgBootPartitionStartBytes = osImageBootOffsetMB * 1024 * 1024;
+  osImgBootPartitionStartSectors = bytesToSectors osImgBootPartitionStartBytes;
+
+  linuxFsTypeGuid = "0FC63DAF-8483-4772-8E79-3D69D8477DE4";
+  efiSysTypeGuid = "C12A7328-F81F-11D2-BA4B-00A0C93EC93B";
+
+in pkgs.stdenv.mkDerivation {
+  pname = imageName;
+  version = "assembled";
+
+  src = null;
+  dontUnpack = true;
+
+  inherit ubootIdbloaderFile ubootItbFile nixosBootImageFile nixosRootfsImageFile;
+  inherit imagePaddingMB;
+  inherit idbloaderOffsetSectors itbOffsetSectors;
+
   nativeBuildInputs = [
-    pkgs.nix
     pkgs.coreutils
-    pkgs.gptfdisk
-    pkgs.e2fsprogs
-    pkgs.dosfstools
     pkgs.util-linux
   ];
 
-  # Skip unpack phase since we don't have source to unpack
-  dontUnpack = true;
+  env = {
+    BUILD_FULL_IMAGE = if buildFullImage then "true" else "false";
+    BUILD_OS_IMAGE = if buildOsImage then "true" else "false";
+    BUILD_UBOOT_IMAGE = if buildUbootImage then "true" else "false";
+  };
 
+  # --- FIX: Renamed `buildCommand` to `buildPhase` ---
+  # This ensures stdenv runs this script and then proceeds to the `installPhase`.
   buildPhase = ''
-    set -euxo pipefail
+    set -xe
 
-    echo "=== Build Phase Starting ==="
-    echo "buildFullImage: ${lib.boolToString buildFullImage}"
-    echo "buildOsImage: ${lib.boolToString buildOsImage}"  
-    echo "buildUbootImage: ${lib.boolToString buildUbootImage}"
+    local full_img_boot_part_start_sectors=${toString fullImgBootPartitionStartSectors}
+    local os_img_boot_part_start_sectors=${toString osImgBootPartitionStartSectors}
+    local linux_fs_type_guid="${linuxFsTypeGuid}"
+    local efi_sys_type_guid="${efiSysTypeGuid}"
+    local alignment_unit_bytes=${toString alignmentUnitBytes}
+    local img_name_base="${imageName}"
 
-    # --- Helper: Create and populate a full disk image ---
-    function build_full_image {
-      local img_name="$1"
-      echo "--- Building full image: $img_name ---"
+    # --- Function to assemble the OS-only (SD card) image ---
+    build_os_image() {
+      echo "--- Assembling OS Only Image (SD Card): ''${img_name_base}-os-only.img ---"
+      local os_img_name="''${img_name_base}-os-only.img"
+      local boot_img_size_bytes=$(stat -c %s "$nixosBootImageFile")
+      local rootfs_img_size_bytes=$(stat -c %s "$nixosRootfsImageFile")
+      local boot_img_min_sectors=$(( (boot_img_size_bytes + 511) / 512 ))
+      local rootfs_img_min_sectors=$(( (rootfs_img_size_bytes + 511) / 512 ))
 
-      echo "Creating ${toString imageSizeMB}MB raw image file..."
-      dd if=/dev/zero of="$img_name" bs=1M count=${toString imageSizeMB} status=progress
+      local os_img_rootfs_part_start_sectors=$(( os_img_boot_part_start_sectors + boot_img_min_sectors ))
+      local os_img_min_end_bytes=$(( os_img_rootfs_part_start_sectors * 512 + rootfs_img_size_bytes ))
 
-      echo "Writing U-Boot binaries to raw offsets..."
-      dd if="${ubootIdbloaderFile}" of="$img_name" bs=512 seek=${toString idbloaderOffsetSectors} conv=notrunc
-      dd if="${ubootItbFile}" of="$img_name" bs=512 seek=${toString itbOffsetSectors} conv=notrunc
+      local val_to_align=$(( os_img_min_end_bytes + (imagePaddingMB * 1024 * 1024) ))
+      local os_img_total_size_bytes=$(( (val_to_align + alignment_unit_bytes - 1) / alignment_unit_bytes * alignment_unit_bytes ))
 
-      local boot_offset_sectors=$(( ${toString bootOffsetMB} * 1024 * 1024 / 512))
-      local boot_size_sectors=$(( ${toString bootSizeMB} * 1024 * 1024 / 512))
+      truncate -s "''${os_img_total_size_bytes}" "''${os_img_name}"
 
-      echo "Creating GPT partition table..."
-      sgdisk -n 1:$boot_offset_sectors:$(($boot_offset_sectors + $boot_size_sectors)) -c 1:"NIXOS_BOOT" -t 1:ef00 "$img_name"
-      sgdisk -n 2:0:0 -c 2:"NIXOS_ROOT" -t 2:8300 "$img_name"
-
-      echo "Formatting and populating partitions..."
-      local loopDevice=$(losetup -f --show -P "$img_name")
-      mkfs.vfat -F 32 -n "NIXOS_BOOT" "''${loopDevice}p1"
-      mkfs.ext4 -L "NIXOS_ROOT" -E lazy_itable_init=0,lazy_journal_init=0 "''${loopDevice}p2"
-
-      local rootMnt=$(mktemp -d)
-      mount "''${loopDevice}p2" "$rootMnt"
-      mkdir -p "$rootMnt/boot"
-      mount "''${loopDevice}p1" "$rootMnt/boot"
-
-      mkdir -p "$rootMnt/nix/store"
-      nix-store -qR "${systemToplevel}" | xargs -r cp -at "$rootMnt/nix/store"
-      mkdir -p "$rootMnt/nix/var/nix/profiles"
-      ln -s "${systemToplevel}" "$rootMnt/nix/var/nix/profiles/system"
-      mkdir -p "$rootMnt/boot/EFI/BOOT"
-      cp "${ukiFile}" "$rootMnt/boot/EFI/BOOT/BOOT${lib.toUpper pkgs.stdenv.hostPlatform.efiArch}.EFI"
-
-      sync
-      umount -R "$rootMnt"
-      losetup -d "$loopDevice"
-      rmdir "$rootMnt"
-
-      echo "Full image '$img_name' created successfully"
+      sfdisk "''${os_img_name}" << EOF
+label: gpt
+unit: sectors
+first-lba: 34
+name="NIXOS_BOOT", start=$os_img_boot_part_start_sectors, size=$boot_img_min_sectors, type="$efi_sys_type_guid"
+name="NIXOS_ROOT", start=$os_img_rootfs_part_start_sectors, type="$linux_fs_type_guid"
+EOF
+      dd if="$nixosBootImageFile" of="''${os_img_name}" seek="$os_img_boot_part_start_sectors" conv=notrunc,fsync bs=512 status=progress
+      dd if="$nixosRootfsImageFile" of="''${os_img_name}" seek="$os_img_rootfs_part_start_sectors" conv=notrunc,fsync bs=512 status=progress
+      echo "--- OS Only image created: ''${os_img_name} ---"
     }
 
-    # --- Helper: Create an OS-only image (no bootloaders) ---
-    function build_os_image {
-      local img_name="$1"
-      echo "--- Building OS-only image: $img_name ---"
+    # --- Function to assemble the full monolithic (eMMC) image ---
+    build_full_image() {
+      echo "--- Assembling Full Monolithic Image: ''${img_name_base}-full.img ---"
+      local full_img_name="''${img_name_base}-full.img"
+      local boot_img_size_bytes=$(stat -c %s "$nixosBootImageFile")
+      local rootfs_img_size_bytes=$(stat -c %s "$nixosRootfsImageFile")
+      local boot_img_min_sectors=$(( (boot_img_size_bytes + 511) / 512 ))
+      local rootfs_img_min_sectors=$(( (rootfs_img_size_bytes + 511) / 512 ))
 
-      # Calculate total size needed (boot + estimated root size)
-      # For OS-only, we don't need the initial bootloader gap
-      local boot_size_sectors=$(( ${toString bootSizeMB} * 1024 * 1024 / 512))
-      local estimated_root_size_mb=$((${toString imageSizeMB} - ${toString bootSizeMB}))
-      local total_size_mb=$((${toString bootSizeMB} + estimated_root_size_mb))
+      local full_img_rootfs_part_start_sectors=$(( full_img_boot_part_start_sectors + boot_img_min_sectors ))
+      local full_img_min_end_bytes=$(( full_img_rootfs_part_start_sectors * 512 + rootfs_img_size_bytes ))
 
-      echo "Creating ''${total_size_mb}MB OS-only image file..."
-      dd if=/dev/zero of="$img_name" bs=1M count=$total_size_mb status=progress
+      local val_to_align=$(( full_img_min_end_bytes + (imagePaddingMB * 1024 * 1024) ))
+      local full_img_total_size_bytes=$(( (val_to_align + alignment_unit_bytes - 1) / alignment_unit_bytes * alignment_unit_bytes ))
 
-      echo "Creating GPT partition table (starting from sector 2048)..."
-      # Start boot partition at sector 2048 (1MB) - standard GPT alignment
-      local boot_start_sector=2048
-      local boot_end_sector=$((boot_start_sector + boot_size_sectors - 1))
-      
-      sgdisk -n 1:$boot_start_sector:$boot_end_sector -c 1:"NIXOS_BOOT" -t 1:ef00 "$img_name"
-      sgdisk -n 2:0:0 -c 2:"NIXOS_ROOT" -t 2:8300 "$img_name"
+      truncate -s "''${full_img_total_size_bytes}" "''${full_img_name}"
+      dd if="$ubootIdbloaderFile" of="''${full_img_name}" seek="$idbloaderOffsetSectors" conv=notrunc,fsync bs=512 status=progress
+      dd if="$ubootItbFile" of="''${full_img_name}" seek="$itbOffsetSectors" conv=notrunc,fsync bs=512 status=progress
 
-      echo "Formatting and populating partitions..."
-      local loopDevice=$(losetup -f --show -P "$img_name")
-      mkfs.vfat -F 32 -n "NIXOS_BOOT" "''${loopDevice}p1"
-      mkfs.ext4 -L "NIXOS_ROOT" -E lazy_itable_init=0,lazy_journal_init=0 "''${loopDevice}p2"
-
-      local rootMnt=$(mktemp -d)
-      mount "''${loopDevice}p2" "$rootMnt"
-      mkdir -p "$rootMnt/boot"
-      mount "''${loopDevice}p1" "$rootMnt/boot"
-
-      echo "Populating NixOS system..."
-      mkdir -p "$rootMnt/nix/store"
-      nix-store -qR "${systemToplevel}" | xargs -r cp -at "$rootMnt/nix/store"
-      mkdir -p "$rootMnt/nix/var/nix/profiles"
-      ln -s "${systemToplevel}" "$rootMnt/nix/var/nix/profiles/system"
-      mkdir -p "$rootMnt/boot/EFI/BOOT"
-      cp "${ukiFile}" "$rootMnt/boot/EFI/BOOT/BOOT${lib.toUpper pkgs.stdenv.hostPlatform.efiArch}.EFI"
-
-      sync
-      umount -R "$rootMnt"
-      losetup -d "$loopDevice"
-      rmdir "$rootMnt"
-
-      echo "OS-only image '$img_name' complete. Note: This image requires external bootloader installation."
+      sfdisk "''${full_img_name}" << EOF
+label: gpt
+unit: sectors
+first-lba: 34
+name="NIXOS_BOOT", start=$full_img_boot_part_start_sectors, size=$boot_img_min_sectors, type="$efi_sys_type_guid"
+name="NIXOS_ROOT", start=$full_img_rootfs_part_start_sectors, type="$linux_fs_type_guid"
+EOF
+      dd if="$nixosBootImageFile" of="''${full_img_name}" seek="$full_img_boot_part_start_sectors" conv=notrunc,fsync bs=512 status=progress
+      dd if="$nixosRootfsImageFile" of="''${full_img_name}" seek="$full_img_rootfs_part_start_sectors" conv=notrunc,fsync bs=512 status=progress
+      echo "--- Full monolithic image created: ''${full_img_name} ---"
     }
 
-    # --- Helper: Create a U-Boot only image ---
-    function build_uboot_image {
-        local img_name="$1"
-        local min_uboot_size_mb=16
-        echo "--- Building U-Boot only image: $img_name ---"
-        truncate -s ''${min_uboot_size_mb}M "$img_name"
-        dd if="${ubootIdbloaderFile}" of="$img_name" bs=512 seek=${toString idbloaderOffsetSectors} conv=notrunc
-        dd if="${ubootItbFile}" of="$img_name" bs=512 seek=${toString itbOffsetSectors} conv=notrunc
-        echo "U-Boot only image '$img_name' created successfully"
+    # --- Function to assemble U-Boot only image ---
+    build_uboot_image() {
+        echo "--- Assembling U-Boot Only Image: ''${img_name_base}-uboot-only.img ---"
+        local uboot_img_name="''${img_name_base}-uboot-only.img"
+        local itb_size_bytes=$(stat -c %s "$ubootItbFile")
+        
+        local uboot_img_min_end_bytes=$((itbOffsetSectors * 512 + itb_size_bytes))
+        local uboot_img_total_size_bytes=$(( (uboot_img_min_end_bytes + alignment_unit_bytes - 1) / alignment_unit_bytes * alignment_unit_bytes ))
+        if (( uboot_img_total_size_bytes < 16 * 1024 * 1024 )); then uboot_img_total_size_bytes=$((16 * 1024 * 1024)); fi
+
+        truncate -s "''${uboot_img_total_size_bytes}" "''${uboot_img_name}"
+        dd if="$ubootIdbloaderFile" of="''${uboot_img_name}" seek="$idbloaderOffsetSectors" conv=notrunc,fsync bs=512 status=progress
+        dd if="$ubootItbFile" of="''${uboot_img_name}" seek="$itbOffsetSectors" conv=notrunc,fsync bs=512 status=progress
+        echo "--- U-Boot Only image created: ''${uboot_img_name} ---"
     }
 
     # --- Main Execution ---
-    echo "=== Starting image build process ==="
-    
-    ${lib.optionalString buildFullImage ''
-      echo "Building full image..."
-      build_full_image "nixos-rockchip-full.img"
-    ''}
-    
-    ${lib.optionalString buildOsImage ''
-      echo "Building OS-only image..."
-      build_os_image "nixos-rockchip-os-only.img"
-    ''}
-    
-    ${lib.optionalString buildUbootImage ''
-      echo "Building U-Boot only image..."
-      build_uboot_image "uboot-only.img"
-    ''}
-
-    echo "=== Build phase completed ==="
-    ls -la *.img || echo "No image files found!"
+    if [ "$BUILD_FULL_IMAGE" = "true" ]; then
+      build_full_image
+    fi
+    if [ "$BUILD_OS_IMAGE" = "true" ]; then
+      build_os_image
+    fi
+    if [ "$BUILD_UBOOT_IMAGE" = "true" ]; then
+      build_uboot_image
+    fi
   '';
 
+  # This phase will now be executed correctly after the buildPhase completes.
   installPhase = ''
     mkdir -p $out
-    
-    # Copy any images that were built to the output directory
-    if [[ -f "nixos-rockchip-full.img" ]]; then 
-      echo "Copying nixos-rockchip-full.img to output"
-      cp "nixos-rockchip-full.img" $out/
+    if [[ -f "${imageName}-os-only.img" ]]; then
+      mv "${imageName}-os-only.img" $out/
     fi
-    
-    if [[ -f "nixos-rockchip-os-only.img" ]]; then 
-      echo "Copying nixos-rockchip-os-only.img to output"
-      cp "nixos-rockchip-os-only.img" $out/
+    if [[ -f "${imageName}-full.img" ]]; then
+      mv "${imageName}-full.img" $out/
     fi
-    
-    if [[ -f "uboot-only.img" ]]; then 
-      echo "Copying uboot-only.img to output" 
-      cp "uboot-only.img" $out/
+    if [[ -f "${imageName}-uboot-only.img" ]]; then
+      mv "${imageName}-uboot-only.img" $out/
     fi
-
-    echo "=== Install phase completed ==="
-    echo "Output directory contents:"
-    ls -la $out/
   '';
 
   dontStrip = true;

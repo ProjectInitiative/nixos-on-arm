@@ -12,7 +12,7 @@
   # Rockchip board configuration
   rockchip = {
     enable = true;
-    board = "rk3582-radxa-e52c";
+    # board = "rk3582-radxa-e52c";
     
     # U-Boot package - will use board default if not specified
     uboot.package = pkgs.uboot-rk3582-generic;
@@ -30,7 +30,7 @@
     image.buildVariants = {
       full = true;       # Build full eMMC image with U-Boot (nixos-e52c-full.img)
       sdcard = true;     # Build SD card image without U-Boot (os-only.img)  
-      ubootOnly = false; # Don't build U-Boot only image
+      ubootOnly = true;  # Build U-Boot only image
     };
     
   };
@@ -40,11 +40,18 @@
   time.timeZone = "Etc/UTC";
   
   # User accounts
-  users.users.root.initialHashedPassword = "";
-  users.users.nixos = {
-    isNormalUser = true;
-    extraGroups = [ "wheel" ];
-    initialHashedPassword = "";
+  
+  users.users = {
+    root = {
+      # Set the root password to "root" in plaintext
+      initialPassword = "root";
+    };
+    nixos = {
+      isNormalUser = true;
+      extraGroups = [ "wheel" ];
+      # Set the nixos user password to "nixos" in plaintext
+      initialPassword = "nixos";
+    };
   };
   
   # System packages
@@ -67,7 +74,7 @@
   # Nix configuration
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
   
-  system.stateVersion = "24.11";
+  system.stateVersion = "25.05";
 }
 
 # Build Instructions:
