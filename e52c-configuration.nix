@@ -6,7 +6,7 @@
   ];
   
   # Platform configuration
-  nixpkgs.buildPlatform = "x86_64-linux";
+  nixpkgs.buildPlatform = builtins.currentSystem;
   nixpkgs.hostPlatform = "aarch64-linux";
 
   boot.initrd.availableKernelModules = [
