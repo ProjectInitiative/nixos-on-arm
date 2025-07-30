@@ -14,7 +14,7 @@
     overlays.default = import ./overlays/uboot;
 
     nixosConfigurations.e52c = nixpkgs.lib.nixosSystem {
-      # system = "aarch64-linux";
+      system = "aarch64-linux";
       modules = [
         # disko.nixosModules.disko
         # Import the main configuration

@@ -6,8 +6,8 @@
   ];
   
   # Platform configuration
-  nixpkgs.buildPlatform = builtins.currentSystem;
-  nixpkgs.hostPlatform = "aarch64-linux";
+  # nixpkgs.buildPlatform = "x86_64-linux";
+  # nixpkgs.hostPlatform = "aarch64-linux";
 
   boot.initrd.availableKernelModules = [
     "dw_mmc_rockchip"  # Specific driver for Rockchip SD/eMMC controllers
