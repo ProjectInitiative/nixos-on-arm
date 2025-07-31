@@ -22,30 +22,42 @@ jobs:
       with:
         platforms: arm64
         
+    # Use the modern Determinate Systems Nix installer
     - name: Install Nix
-      uses: cachix/install-nix-action@v22
-      with:
-        nix_path: nixpkgs=channel:nixos-unstable
-        extra_nix_config: |
-          experimental-features = nix-command flakes
-          extra-platforms = aarch64-linux
-          # Ensure we have all the standard substituters
-          substituters = https://cache.nixos.org https://nix-community.cachix.org
-          trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=
-          # Enable more aggressive substitution
-          builders-use-substitutes = true
-          
-    # - name: Setup Cachix (optional, for faster builds)
-    #   uses: cachix/cachix-action@v12
-    #   with:
-    #     name: nix-community
-    #     authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    #   continue-on-error: true  # Don't fail if no token provided
+      uses: DeterminateSystems/nix-installer-action@v14
       
+    # Enable Magic Nix Cache for much better caching
+    - name: Setup Magic Nix Cache
+      uses: DeterminateSystems/magic-nix-cache-action@v8
+      
+    # Optional: Setup Cachix for additional caching
+    - name: Setup Cachix
+      uses: cachix/cachix-action@v15
+      with:
+        name: nix-community
+        # authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'  # Uncomment if you have a token
+      continue-on-error: true
+    
+    # Configure Nix for cross-compilation  
+    - name: Configure Nix for cross-compilation
+      run: |
+        echo "extra-platforms = aarch64-linux" | sudo tee -a /etc/nix/nix.conf
+        echo "builders-use-substitutes = true" | sudo tee -a /etc/nix/nix.conf
+        sudo systemctl restart nix-daemon || true
+        
+    # Verify configuration
+    - name: Verify Nix configuration
+      run: |
+        echo "=== Nix Configuration ==="
+        nix show-config | grep -E "(substituters|extra-platforms|system)" || true
+        echo ""
+        echo "=== Testing cache connectivity ==="
+        curl -I https://cache.nixos.org/nix-cache-info || echo "Cache connection failed"
+        
     - name: Build E52C Images (Cross-compiled)
       run: |
         echo "Building E52C images via cross-compilation..."
-        nix build .#e52c-cross
+        nix build .#e52c-cross --print-build-logs --verbose
         
     - name: List built artifacts
       run: |
@@ -114,12 +126,16 @@ jobs:
         platforms: arm64
         
     - name: Install Nix
-      uses: cachix/install-nix-action@v22
-      with:
-        nix_path: nixpkgs=channel:nixos-unstable
-        extra_nix_config: |
-          experimental-features = nix-command flakes
-          extra-platforms = aarch64-linux
+      uses: DeterminateSystems/nix-installer-action@v14
+      
+    - name: Setup Magic Nix Cache
+      uses: DeterminateSystems/magic-nix-cache-action@v8
+      
+    - name: Configure Nix for cross-compilation
+      run: |
+        echo "extra-platforms = aarch64-linux" | sudo tee -a /etc/nix/nix.conf
+        echo "builders-use-substitutes = true" | sudo tee -a /etc/nix/nix.conf
+        sudo systemctl restart nix-daemon || true
           
     - name: Build ${{ matrix.board }} Images
       run: |
