@@ -16,12 +16,19 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       
+    # Add binfmt emulation support before installing Nix
+    - name: Set up QEMU for multi-platform emulation
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: arm64
+        
     - name: Install Nix
       uses: cachix/install-nix-action@v22
       with:
         nix_path: nixpkgs=channel:nixos-unstable
         extra_nix_config: |
           experimental-features = nix-command flakes
+          extra-platforms = aarch64-linux
           
     # - name: Setup Cachix (optional, for faster builds)
     #   uses: cachix/cachix-action@v12
@@ -96,12 +103,18 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       
+    - name: Set up QEMU for multi-platform emulation
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: arm64
+        
     - name: Install Nix
       uses: cachix/install-nix-action@v22
       with:
         nix_path: nixpkgs=channel:nixos-unstable
         extra_nix_config: |
           experimental-features = nix-command flakes
+          extra-platforms = aarch64-linux
           
     - name: Build ${{ matrix.board }} Images
       run: |
