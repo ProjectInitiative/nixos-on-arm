@@ -85,30 +85,24 @@
     # System-specific packages organized by board
     packages = forAllSystems (system: 
       let
-        # Generate packages for a specific board
-        mkBoardPackages = board: {
-          # Auto-detect: use current system as build platform
-          "${board}" = (mkBoardConfiguration board system).config.system.build.rockchipImages;
-          "${board}-default" = (mkBoardConfiguration board system).config.system.build.rockchipImages;
-          
-          # Explicit build modes (available on all systems)
-          "${board}-native" = self.nixosConfigurations.${board}-native.config.system.build.rockchipImages;
-          "${board}-cross" = self.nixosConfigurations.${board}-cross.config.system.build.rockchipImages;
-          
-          # Aliases for backward compatibility and convenience
-          "${board}-images" = (mkBoardConfiguration board system).config.system.build.rockchipImages;
-        };
+        # Direct references to avoid interpolation issues
+        e52cNative = self.nixosConfigurations.e52c-native.config.system.build.rockchipImages;
+        e52cCross = self.nixosConfigurations.e52c-cross.config.system.build.rockchipImages;
       in
-      nixpkgs.lib.mergeAttrs 
-        (mkBoardPackages "e52c")
-        {
-          # Default points to e52c for backward compatibility
-          default = (mkBoardConfiguration "e52c" system).config.system.build.rockchipImages;
-          
-          # Add more boards here:
-          # inherit (mkBoardPackages "e25") e25 e25-default e25-native e25-cross e25-images;
-          # inherit (mkBoardPackages "rock5b") rock5b rock5b-default rock5b-native rock5b-cross rock5b-images;
-        }
+      {
+        # E52C builds
+        default = (mkBoardConfiguration "e52c" system).config.system.build.rockchipImages;
+        e52c = (mkBoardConfiguration "e52c" system).config.system.build.rockchipImages;
+        e52c-default = (mkBoardConfiguration "e52c" system).config.system.build.rockchipImages;
+        e52c-native = e52cNative;
+        e52c-cross = e52cCross;
+        e52c-images = (mkBoardConfiguration "e52c" system).config.system.build.rockchipImages;
+        
+        # Future boards can be added here:
+        # e25 = (mkBoardConfiguration "e25" system).config.system.build.rockchipImages;
+        # e25-native = self.nixosConfigurations.e25-native.config.system.build.rockchipImages;
+        # e25-cross = self.nixosConfigurations.e25-cross.config.system.build.rockchipImages;
+      }
     );
 
     # Development shells
