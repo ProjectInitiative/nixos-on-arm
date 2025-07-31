@@ -57,7 +57,7 @@ jobs:
     - name: Build E52C Images (Cross-compiled)
       run: |
         echo "Building E52C images via cross-compilation..."
-        nix build .#e52c-cross --print-build-logs --verbose
+        nix build .#e52c-cross --print-build-logs
         
     - name: List built artifacts
       run: |
