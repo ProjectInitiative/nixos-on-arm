@@ -80,9 +80,9 @@
     overlays.default = import ./overlays/uboot;
 
     # Create configurations for all boards
-    nixosConfigurations = nixpkgs.lib.mergeAttrs 
-      (mkBoardConfigurations "e52c")
-      (mkBoardConfigurations "rock5a")
+    nixosConfigurations = 
+      (mkBoardConfigurations "e52c") //
+      (mkBoardConfigurations "rock5a") //
       {
         # Add more boards here as you create them:
         # inherit (mkBoardConfigurations "e25") e25 e25-native e25-cross;
