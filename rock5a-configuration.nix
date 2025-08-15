@@ -21,10 +21,10 @@
     # board = "rk3582-radxa-e52c";
     
     # U-Boot package - will use board default if not specified
-    uboot.package = pkgs.uboot-rk3582-generic;
+    uboot.package = pkgs.ubootRock5ModelA;
     
     # Device tree - will use board default if not specified
-    deviceTree = "rockchip/rk3582-radxa-e52c.dtb";
+    deviceTree = "rockchip/rk3588s-rock-5a.dtb";
     
     # Optional: customize console settings (uses board defaults if not specified)
     console = {
@@ -42,7 +42,7 @@
   };
   
   # Basic system configuration
-  networking.hostName = "nixos-e52c";
+  networking.hostName = "nixos-rock-5a";
   time.timeZone = "Etc/UTC";
   
   # User accounts
