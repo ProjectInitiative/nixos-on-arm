@@ -21,13 +21,17 @@
     boards = {
       e52c = {
         hostPlatform = "aarch64-linux";
-        configFile = ./e52c-configuration.nix;
+        bootOnlyFile = ./boot/e52c-boot.nix;
+        demoFile = ./demo/e52c-demo.nix;
+        # configFile = ./e52c-configuration.nix;
         description = "Radxa E52C (RK3582)";
       };
 
       rock5a = {
         hostPlatform = "aarch64-linux";
-        configFile = ./rock5a-configuration.nix;
+        bootOnlyFile = ./boot/rock5a-boot.nix;
+        demoFile = ./demo/rock5a-demo.nix;
+        # configFile = ./rock5a-configuration.nix;
         description = "Radxa Rock5A (RK3588s)";
       };
       # Future boards can be added here:
@@ -48,7 +52,8 @@
       system = buildSystem;
       modules = [
         # Import the board-specific configuration
-        boards.${board}.configFile
+        # boards.${board}.configFile
+        boards.${board}.demoFile
         
         # Apply the U-Boot overlay
         ({ config, pkgs, ... }: {
@@ -78,6 +83,45 @@
   in
   {
     overlays.default = import ./overlays/uboot;
+
+    # Expose board modules for external consumption
+    boardModules = nixpkgs.lib.mapAttrs (name: _: [
+      boards.${name}.configFile
+      ({ config, pkgs, ... }: {
+        nixpkgs.overlays = [ self.overlays.default ];
+        nixpkgs.hostPlatform = boards.${name}.hostPlatform;
+        nixpkgs.config = {
+          allowUnsupportedSystem = true;
+          allowUnfree = true;
+        };
+      })
+    ]) boards;
+
+    # Expose minimal boot-only modules (recommended for production)
+    bootModules = nixpkgs.lib.mapAttrs (name: _: [
+      boards.${name}.bootOnlyFile
+      ({ config, pkgs, ... }: {
+        nixpkgs.overlays = [ self.overlays.default ];
+        nixpkgs.hostPlatform = boards.${name}.hostPlatform;
+        nixpkgs.config = {
+          allowUnsupportedSystem = true;
+          allowUnfree = true;
+        };
+      })
+    ]) boards;
+
+    # Expose demo modules (for testing and development)
+    demoModules = nixpkgs.lib.mapAttrs (name: _: [
+      boards.${name}.demoFile
+      ({ config, pkgs, ... }: {
+        nixpkgs.overlays = [ self.overlays.default ];
+        nixpkgs.hostPlatform = boards.${name}.hostPlatform;
+        nixpkgs.config = {
+          allowUnsupportedSystem = true;
+          allowUnfree = true;
+        };
+      })
+    ]) boards;
 
     # Create configurations for all boards
     nixosConfigurations = 
