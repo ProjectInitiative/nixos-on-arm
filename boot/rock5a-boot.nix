@@ -22,8 +22,8 @@
     
     # Console configuration for Rock 5A
     console = {
-      earlycon = "uart8250,mmio32,0xfeb50000";
-      console = "ttyS4,1500000";
+      earlycon = "uart8250,mmio32,0xfeb50000";  # Keep this for very early boot
+      console = "tty1";  # Use virtual console (HDMI/framebuffer)
     };
     
     # Default image variants (can be overridden by consumers)
