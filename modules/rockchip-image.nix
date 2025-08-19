@@ -150,6 +150,18 @@ in
       };
     };
 
+    boot.postBootCommands = ''
+      if [ -f /nix-path-registration ]; then
+        ${config.nix.package.out}/bin/nix-store --load-db < /nix-path-registration
+
+        # Create system profile & mark as NixOS
+        touch /etc/NIXOS
+        ${config.nix.package.out}/bin/nix-env -p /nix/var/nix/profiles/system --set /run/current-system
+
+        rm -f /nix-path-registration
+      fi
+    '';
+
     # G. Ensure necessary packages are in the image (iproute2 and cloud-utils are no longer strictly required by the resize logic but might be useful)
     environment.systemPackages = with pkgs; [
       iproute2

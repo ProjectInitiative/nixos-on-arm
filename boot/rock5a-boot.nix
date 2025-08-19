@@ -34,9 +34,6 @@
     };
   };
   
-  environment.systemPackages = [
-    pkgs.git
-  ]; 
   
   # Essential Nix configuration for flakes
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
