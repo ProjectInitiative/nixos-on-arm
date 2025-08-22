@@ -45,7 +45,7 @@ in
     # A. Configure UKI boot
     boot.kernelPackages = pkgs.linuxPackages_latest;
     # tell nix not to generate bootloader, u-boot will pick up the uki
-    boot.loader.external.enable = true;
+    boot.bootspec.enable = true;
     hardware.firmware = with pkgs; [ firmwareLinuxNonfree ];
 
     hardware.deviceTree = mkIf (cfg.deviceTree != null) {
