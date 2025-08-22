@@ -58,10 +58,31 @@ in
       volumeLabel = "NIXOS_BOOT";
       size = "256M";
       populateImageCommands = ''
+        # Create required directories
         mkdir -p ./files/EFI/BOOT
+        mkdir -p ./files/EFI/systemd
+        mkdir -p ./files/loader/entries
+
+        # Copy the unified kernel image as fallback boot target
         cp ${config.system.build.uki}/${config.system.boot.loader.ukiFile} ./files/EFI/BOOT/BOOTAA64.EFI
+
+        # Pre-install systemd-boot (like --install-bootloader would do)
+        cp ${pkgs.systemd}/lib/systemd/boot/efi/systemd-bootaa64.efi ./files/EFI/systemd/systemd-bootaa64.efi
+        cp ${pkgs.systemd}/lib/systemd/boot/efi/systemd-bootaa64.efi ./files/EFI/BOOT/BOOTAA64.EFI
+
+        # Create loader.conf so systemd-boot sees our entry
+        cat > ./files/loader/loader.conf <<EOF
+        default nixos
+        timeout 3
+        console-mode max
+        EOF
+
+        # Create a stub entry pointing at the UKI
+        cat > ./files/loader/entries/nixos.conf <<EOF
+        title   NixOS
+        linux   /EFI/BOOT/BOOTAA64.EFI
+        EOF
       '';
-      storePaths = [ ];
     };
 
     system.build.nixosRootfsPartitionImage = pkgs.callPackage "${pkgs.path}/nixos/lib/make-ext4-fs.nix" {
