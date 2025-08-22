@@ -83,6 +83,7 @@ in
         linux   /EFI/BOOT/BOOTAA64.EFI
         EOF
       '';
+      storePaths = [ ];
     };
 
     system.build.nixosRootfsPartitionImage = pkgs.callPackage "${pkgs.path}/nixos/lib/make-ext4-fs.nix" {
