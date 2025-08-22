@@ -44,8 +44,8 @@ in
   config = mkIf cfg.enable {
     # A. Configure UKI boot
     boot.kernelPackages = pkgs.linuxPackages_latest;
-    boot.loader.systemd-boot.enable = true;
-    boot.loader.grub.enable = false;
+    # tell nix not to generate bootloader, u-boot will pick up the uki
+    boot.loader.external.enable = true;
     hardware.firmware = with pkgs; [ firmwareLinuxNonfree ];
 
     hardware.deviceTree = mkIf (cfg.deviceTree != null) {
@@ -58,33 +58,41 @@ in
       volumeLabel = "NIXOS_BOOT";
       size = "256M";
       populateImageCommands = ''
-        # Create required directories
         mkdir -p ./files/EFI/BOOT
-        mkdir -p ./files/EFI/systemd
-        mkdir -p ./files/loader/entries
-
-        # Copy the unified kernel image as fallback boot target
         cp ${config.system.build.uki}/${config.system.boot.loader.ukiFile} ./files/EFI/BOOT/BOOTAA64.EFI
-
-        # Pre-install systemd-boot (like --install-bootloader would do)
-        cp ${pkgs.systemd}/lib/systemd/boot/efi/systemd-bootaa64.efi ./files/EFI/systemd/systemd-bootaa64.efi
-        cp ${pkgs.systemd}/lib/systemd/boot/efi/systemd-bootaa64.efi ./files/EFI/BOOT/BOOTAA64.EFI
-
-        # Create loader.conf so systemd-boot sees our entry
-        cat > ./files/loader/loader.conf <<EOF
-        default nixos
-        timeout 3
-        console-mode max
-        EOF
-
-        # Create a stub entry pointing at the UKI
-        cat > ./files/loader/entries/nixos.conf <<EOF
-        title   NixOS
-        linux   /EFI/BOOT/BOOTAA64.EFI
-        EOF
       '';
       storePaths = [ ];
     };
+
+    boot.loader.systemd-boot.enable = false;
+    boot.loader.grub.enable = false;
+# populateImageCommands = ''
+  # install systemd boot
+  # Create required directories
+  #   mkdir -p ./files/EFI/BOOT
+  #   mkdir -p ./files/EFI/systemd
+  #   mkdir -p ./files/loader/entries
+    
+  #   # Pre-install systemd-boot bootloader
+  #   cp ${pkgs.systemd}/lib/systemd/boot/efi/systemd-bootaa64.efi ./files/EFI/BOOT/BOOTAA64.EFI
+  #   cp ${pkgs.systemd}/lib/systemd/boot/efi/systemd-bootaa64.efi ./files/EFI/systemd/systemd-bootaa64.efi
+    
+  #   # Copy the unified kernel image to a separate location
+  #   cp ${config.system.build.uki}/${config.system.boot.loader.ukiFile} ./files/EFI/nixos/nixos.efi
+    
+  #   # Create loader.conf so systemd-boot sees our entry
+  #   cat > ./files/loader/loader.conf <<EOF
+  #   default nixos
+  #   timeout 3
+  #   console-mode max
+  #   EOF
+    
+  #   # Create a boot entry pointing at the UKI
+  #   cat > ./files/loader/entries/nixos.conf <<EOF
+  #   title   NixOS
+  #   efi     /EFI/nixos/nixos.efi
+  #   EOF
+  # '';
 
     system.build.nixosRootfsPartitionImage = pkgs.callPackage "${pkgs.path}/nixos/lib/make-ext4-fs.nix" {
       storePaths = [ config.system.build.toplevel ];
