@@ -1,0 +1,233 @@
+name: "Build NixOS Images"
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  build:
+    runs-on: ubuntu-latest  # Use standard x86_64 runners
+    strategy:
+      matrix:
+        board: [e52c, rock5a]
+        variant: [demo, boot]
+    
+    name: Build ${{ matrix.board }}-${{ matrix.variant }}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    # Add binfmt emulation support before installing Nix
+    - name: Set up QEMU for multi-platform emulation
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: arm64
+        
+    # Use the modern Determinate Systems Nix installer
+    - name: Install Nix
+      uses: DeterminateSystems/nix-installer-action@v14
+      
+    # Enable Magic Nix Cache for much better caching
+    - name: Setup Magic Nix Cache
+      uses: DeterminateSystems/magic-nix-cache-action@v8
+      
+    # Connect to Tailscale for private cache access
+    - name: Connect to Tailscale
+      uses: tailscale/github-action@v2
+      with:
+        oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+        oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+        tags: tag:ci
+        
+    # Optional: Setup Cachix for additional caching
+    - name: Setup Cachix
+      uses: cachix/cachix-action@v15
+      with:
+        name: nix-community
+        # authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'  # Uncomment if you have a token
+      continue-on-error: true
+    
+    # Configure Nix for cross-compilation and private cache
+    - name: Configure Nix for cross-compilation and private cache
+      run: |
+        echo "extra-platforms = aarch64-linux" | sudo tee -a /etc/nix/nix.conf
+        echo "builders-use-substitutes = true" | sudo tee -a /etc/nix/nix.conf
+        
+        # Add your private Attic cache
+        echo "substituters = https://cache.nixos.org/ ${{ secrets.ATTIC_CACHE_URL }}" | sudo tee -a /etc/nix/nix.conf
+        echo "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= ${{ secrets.ATTIC_PUBLIC_KEY }}" | sudo tee -a /etc/nix/nix.conf
+        
+        # Alternative: S3-compatible cache configuration
+        # Uncomment and configure if using S3 instead of Attic:
+        # echo "substituters = https://cache.nixos.org/ s3://${{ secrets.S3_CACHE_BUCKET }}?endpoint=${{ secrets.S3_ENDPOINT }}&region=${{ secrets.S3_REGION }}" | sudo tee -a /etc/nix/nix.conf
+        # echo "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= ${{ secrets.S3_CACHE_PUBLIC_KEY }}" | sudo tee -a /etc/nix/nix.conf
+        
+        sudo systemctl restart nix-daemon || true
+        
+        # Setup Attic client for pushing to cache
+        if [ -n "${{ secrets.ATTIC_SERVER_TOKEN }}" ]; then
+          echo "Setting up Attic client..."
+          nix profile install github:zhaofengli/attic
+          export PATH="$HOME/.nix-profile/bin:$PATH"
+          
+          # Configure Attic
+          attic login "${{ secrets.ATTIC_CACHE_NAME }}" "${{ secrets.ATTIC_CACHE_URL }}" "${{ secrets.ATTIC_SERVER_TOKEN }}"
+          
+          echo "ATTIC_ENABLED=true" >> $GITHUB_ENV
+          echo "$HOME/.nix-profile/bin" >> $GITHUB_PATH
+        fi
+        
+        # Alternative: Setup AWS credentials for S3 cache
+        # Uncomment if using S3 instead of Attic:
+        # if [ -n "${{ secrets.AWS_ACCESS_KEY_ID }}" ]; then
+        #   echo "Setting up S3 cache credentials..."
+        #   echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
+        #   echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
+        #   echo "AWS_REGION=${{ secrets.S3_REGION }}" >> $GITHUB_ENV
+        #   echo "S3_ENABLED=true" >> $GITHUB_ENV
+        # fi
+        
+    # Verify configuration
+    - name: Verify Nix and Tailscale configuration
+      run: |
+        echo "=== Tailscale Status ==="
+        tailscale status || echo "Tailscale not connected"
+        echo ""
+        echo "=== Nix Configuration ==="
+        nix show-config | grep -E "(substituters|trusted-public-keys|extra-platforms|system)" || true
+        echo ""
+        echo "=== Testing cache connectivity ==="
+        curl -I https://cache.nixos.org/nix-cache-info || echo "Public cache connection failed"
+        if [ -n "${{ secrets.ATTIC_CACHE_URL }}" ]; then
+          echo "Testing private cache..."
+          curl -I "${{ secrets.ATTIC_CACHE_URL }}/nix-cache-info" || echo "Private cache connection failed"
+        fi
+        
+    - name: Build ${{ matrix.board }}-${{ matrix.variant }} Images
+      run: |
+        echo "Building ${{ matrix.board }}-${{ matrix.variant }} images..."
+        nix build .#${{ matrix.board }}-${{ matrix.variant }} --print-build-logs
+        
+        # Push to Attic cache if configured
+        if [ "$ATTIC_ENABLED" = "true" ]; then
+          echo "Pushing build results to Attic cache..."
+          attic push "${{ secrets.ATTIC_CACHE_NAME }}" result/ || echo "Failed to push to cache (non-fatal)"
+        fi
+        
+        # Alternative: Push to S3 cache (if using S3 instead)
+        # if [ "$S3_ENABLED" = "true" ]; then
+        #   echo "Pushing build results to S3 cache..."
+        #   nix copy --to "s3://${{ secrets.S3_CACHE_BUCKET }}?endpoint=${{ secrets.S3_ENDPOINT }}&region=${{ secrets.S3_REGION }}" result/ || echo "Failed to push to S3 cache (non-fatal)"
+        # fi
+        
+    - name: List built artifacts
+      run: |
+        echo "=== Build Results for ${{ matrix.board }}-${{ matrix.variant }} ==="
+        ls -la result/
+        echo ""
+        echo "=== Image Sizes ==="
+        du -h result/*.img || echo "No .img files found"
+        echo ""
+        echo "=== All Files ==="
+        find result/ -type f -exec ls -lh {} \;
+        echo ""
+        echo "=== Image Details ==="
+        for img in result/*.img 2>/dev/null || true; do
+          if [ -f "$img" ]; then
+            echo "File: $(basename $img)"
+            echo "Size: $(stat -c%s $img) bytes"
+            echo "---"
+          fi
+        done
+        
+    - name: Upload ${{ matrix.board }}-${{ matrix.variant }} Images
+      uses: actions/upload-artifact@v4
+      with:
+        name: nixos-${{ matrix.board }}-${{ matrix.variant }}-images
+        path: |
+          result/
+        retention-days: 30
+
+  # Create combined release assets when building tags
+  create-release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: downloaded-artifacts/
+        
+    - name: Prepare release assets
+      run: |
+        mkdir -p release-assets
+        
+        echo "=== Downloaded artifacts ==="
+        ls -la downloaded-artifacts/
+        
+        # Copy all image files to release directory
+        find downloaded-artifacts/ -name "*.img" -exec cp {} release-assets/ \; || echo "No .img files found"
+        
+        # Also copy any other relevant files
+        find downloaded-artifacts/ -name "*.bin" -exec cp {} release-assets/ \; || echo "No .bin files found"
+        find downloaded-artifacts/ -name "*.itb" -exec cp {} release-assets/ \; || echo "No .itb files found"
+        
+        cd release-assets
+        
+        echo "=== Files in release directory ==="
+        ls -la
+        
+        # Only create checksums if we have files
+        if [ "$(ls -A .)" ]; then
+          # Create checksums for all files
+          sha256sum * > SHA256SUMS
+          
+          # Compress images for release
+          for img in *.img 2>/dev/null || true; do
+            if [ -f "$img" ]; then
+              echo "Compressing $img..."
+              xz -9 -T0 "$img"
+            fi
+          done
+          
+          echo "=== Final release contents ==="
+          ls -la
+        else
+          echo "No files to release"
+        fi
+        
+    - name: Upload Release Assets
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: actions/upload-artifact@v4
+      with:
+        name: nixos-rockchip-release
+        path: release-assets/
+        retention-days: 90
+
+  # Summary job to provide build overview
+  build-summary:
+    needs: build
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Build Summary
+      run: |
+        echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Built Variants:" >> $GITHUB_STEP_SUMMARY
+        echo "- E52C Demo" >> $GITHUB_STEP_SUMMARY
+        echo "- E52C Boot" >> $GITHUB_STEP_SUMMARY
+        echo "- Rock5A Demo" >> $GITHUB_STEP_SUMMARY
+        echo "- Rock5A Boot" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Artifacts:" >> $GITHUB_STEP_SUMMARY
+        echo "Check the 'Artifacts' section above to download the built images." >> $GITHUB_STEP_SUMMARY
