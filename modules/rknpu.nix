@@ -14,9 +14,8 @@
   # Ensure Mesa has NPU support (Mesa 25.3+)
   hardware.graphics = {
     enable = true;
-    # enable32Bit = true;
     # Use latest Mesa that includes Rocket Gallium3D driver
-    package = pkgs.mesa.drivers;
+    package = pkgs.mesa;
   };
   
   # Add user to video group for NPU access
