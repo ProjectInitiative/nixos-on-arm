@@ -27,6 +27,12 @@
         demoFile = ./demo/rock5a-demo.nix;
         description = "Radxa Rock5A (RK3588s)";
       };
+      orangepi5ultra = {
+        hostPlatform = "aarch64-linux";
+        bootOnlyFile = ./boot/orange-pi-5-ultra-boot.nix;
+        demoFile = ./demo/orange-pi-5-ultra-demo.nix;
+        description = "Orange Pi 5 Ultra (RK3588)";
+      };
     };
 
     # Function to create nixosConfiguration
@@ -88,7 +94,8 @@
     # Full nixosConfigurations (boot + demo variants)
     nixosConfigurations =
       (mkBoardConfigurations "e52c") //
-      (mkBoardConfigurations "rock5a");
+      (mkBoardConfigurations "rock5a") //
+      (mkBoardConfigurations "orangepi5ultra");
 
     # System-specific packages organized by board
     packages = forAllSystems (system:
@@ -105,6 +112,11 @@
         rock5a = mkImg "rock5a" self.demoModules.rock5a; # alias → demo
         rock5a-demo = mkImg "rock5a" self.demoModules.rock5a;
         rock5a-boot = mkImg "rock5a" self.bootModules.rock5a;
+
+        # --- Orange Pi 5 Ultra ---
+        orangepi5ultra = mkImg "orangepi5ultra" self.demoModules.orangepi5ultra; # alias → demo
+        orangepi5ultra-demo = mkImg "orangepi5ultra" self.demoModules.orangepi5ultra;
+        orangepi5ultra-boot = mkImg "orangepi5ultra" self.bootModules.orangepi5ultra;
       }
     );
 
@@ -127,6 +139,10 @@
           echo "  nix build .#rock5a      # Demo image (default alias)"
           echo "  nix build .#rock5a-demo # Explicit demo image"
           echo "  nix build .#rock5a-boot # Barebones boot-only image"
+          echo ""
+          echo "  nix build .#orangepi5ultra      # Demo image (default alias)"
+          echo "  nix build .#orangepi5ultra-demo # Explicit demo image"
+          echo "  nix build .#orangepi5ultra-boot # Barebones boot-only image"
         '';
       };
     });
