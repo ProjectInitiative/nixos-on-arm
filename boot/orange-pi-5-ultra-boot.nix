@@ -19,7 +19,7 @@
     
     # Orange Pi 5 Ultra specific hardware
     uboot.package = pkgs.ubootOrangePi5Ultra;
-    deviceTree = "rockchip/rk3588-orangepi-5-ultra.dts";
+    deviceTree = "rockchip/rk3588-orangepi-5-ultra.dtb";
     
     # Console configuration for Orange Pi 5 Ultra
     console = {
