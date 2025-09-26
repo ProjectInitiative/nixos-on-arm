@@ -35,6 +35,13 @@ final: prev: {
   };
 
   ubootOrangePi5Ultra = prev.buildUBoot {
+    version = "v2025.10-rc5";
+    src = prev.fetchFromGitHub {
+      owner = "u-boot";
+      repo = "u-boot";
+      rev = "v2025.10-rc5";
+      hash = "sha256-EJOS0wRIRBexyX2d0GyIWpGIpB3+fUeXiHZvhEfrhYA=";
+    };
     defconfig = "orangepi-5-ultra-rk3588_defconfig";
     extraMeta.platforms = [ "aarch64-linux" ];
     BL31 = "${prev.armTrustedFirmwareRK3588}/bl31.elf";
