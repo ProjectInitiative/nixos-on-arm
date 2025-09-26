@@ -12,6 +12,7 @@
     full = true;       
     sdcard = true;     
     ubootOnly = true;  # Enable for demo builds
+    spi = true;
   };
   
   # Minimal system defaults

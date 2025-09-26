@@ -28,6 +28,7 @@ in
           full = mkOption { type = types.bool; default = true; description = "Build full eMMC-style image with U-Boot."; };
           sdcard = mkOption { type = types.bool; default = false; description = "Build OS-only image for SD cards (no U-Boot)."; };
           ubootOnly = mkOption { type = types.bool; default = false; description = "Build a minimal image containing only U-Boot."; };
+          spi = mkOption { type = types.bool; default = false; description = "Build a U-Boot SPI image."; };
         };
       };
       deviceTree = mkOption { type = types.nullOr types.str; default = null; };
@@ -97,6 +98,7 @@ in
       inherit pkgs lib;
       ubootIdbloaderFile = "${ubootPackage}/idbloader.img";
       ubootItbFile = "${ubootPackage}/u-boot.itb";
+      ubootSpiFile = if builtins.pathExists "${ubootPackage}/u-boot-rockchip-spi.bin" then "${ubootPackage}/u-boot-rockchip-spi.bin" else null;
       nixosBootImageFile = config.system.build.nixosBootPartitionImage;
       nixosRootfsImageFile = config.system.build.nixosRootfsPartitionImage;
       imageName = cfg.image.name;
@@ -106,6 +108,7 @@ in
       buildFullImage = cfg.image.buildVariants.full;
       buildOsImage = cfg.image.buildVariants.sdcard;
       buildUbootImage = cfg.image.buildVariants.ubootOnly;
+      buildSpiImage = cfg.image.buildVariants.spi;
     };
     
     # D. Set default build target

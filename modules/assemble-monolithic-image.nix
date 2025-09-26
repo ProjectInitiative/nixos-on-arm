@@ -2,6 +2,7 @@
   # U-Boot components
   ubootIdbloaderFile,
   ubootItbFile,
+  ubootSpiFile ? null,
 
   # Pre-built filesystem images
   nixosBootImageFile,
@@ -11,6 +12,7 @@
   buildFullImage ? true,
   buildOsImage ? false,
   buildUbootImage ? false,
+  buildSpiImage ? false,
 
   # Image layout config
   imageName ? "nixos-rockchip-image",
@@ -43,7 +45,7 @@ in pkgs.stdenv.mkDerivation {
   src = null;
   dontUnpack = true;
 
-  inherit ubootIdbloaderFile ubootItbFile nixosBootImageFile nixosRootfsImageFile;
+  inherit ubootIdbloaderFile ubootItbFile ubootSpiFile nixosBootImageFile nixosRootfsImageFile;
   inherit imagePaddingMB;
   inherit idbloaderOffsetSectors itbOffsetSectors;
 
@@ -56,6 +58,7 @@ in pkgs.stdenv.mkDerivation {
     BUILD_FULL_IMAGE = if buildFullImage then "true" else "false";
     BUILD_OS_IMAGE = if buildOsImage then "true" else "false";
     BUILD_UBOOT_IMAGE = if buildUbootImage then "true" else "false";
+    BUILD_SPI_IMAGE = if buildSpiImage then "true" else "false";
   };
 
   # --- FIX: Renamed `buildCommand` to `buildPhase` ---
@@ -146,6 +149,17 @@ EOF
         echo "--- U-Boot Only image created: ''${uboot_img_name} ---"
     }
 
+    # --- Function to copy SPI image ---
+    build_spi_image() {
+        echo "--- Copying SPI Image: ''${img_name_base}-spi.img ---"
+        if [ -z "$ubootSpiFile" ]; then
+            echo "Error: buildSpiImage is true, but ubootSpiFile is not set or the file does not exist."
+            exit 1
+        fi
+        cp "$ubootSpiFile" "''${img_name_base}-spi.img"
+        echo "--- SPI image created: ''${img_name_base}-spi.img ---"
+    }
+
     # --- Main Execution ---
     if [ "$BUILD_FULL_IMAGE" = "true" ]; then
       build_full_image
@@ -155,6 +169,9 @@ EOF
     fi
     if [ "$BUILD_UBOOT_IMAGE" = "true" ]; then
       build_uboot_image
+    fi
+    if [ "$BUILD_SPI_IMAGE" = "true" ]; then
+      build_spi_image
     fi
   '';
 
@@ -169,6 +186,9 @@ EOF
     fi
     if [[ -f "${imageName}-uboot-only.img" ]]; then
       mv "${imageName}-uboot-only.img" $out/
+    fi
+    if [[ -f "${imageName}-spi.img" ]]; then
+      mv "${imageName}-spi.img" $out/
     fi
   '';
 
