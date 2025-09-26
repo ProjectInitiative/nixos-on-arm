@@ -34,5 +34,18 @@ final: prev: {
     ];
   };
 
+  ubootOrangePi5Ultra = prev.buildUBoot {
+    defconfig = "orangepi-5-ultra-rk3588_defconfig";
+    extraMeta.platforms = [ "aarch64-linux" ];
+    BL31 = "${prev.armTrustedFirmwareRK3588}/bl31.elf";
+    ROCKCHIP_TPL = prev.rkbin.TPL_RK3588;
+    filesToInstall = [
+      "u-boot.itb"
+      "idbloader.img"
+      "u-boot-rockchip.bin"
+      "u-boot-rockchip-spi.bin"
+    ];
+  };
+
 
 }
