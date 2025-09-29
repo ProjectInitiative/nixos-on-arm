@@ -32,7 +32,7 @@
       full = lib.mkDefault true;       # eMMC image with U-Boot
       sdcard = lib.mkDefault true;     # SD card image
       ubootOnly = lib.mkDefault false; # U-Boot only (disabled by default)
-      spi = lib.mkDefault false;       # SPI uboot (disabled by default)
+      spi = true;
     };
   };
   
