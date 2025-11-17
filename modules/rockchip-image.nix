@@ -46,7 +46,7 @@ in
     boot.loader.systemd-boot.enable = true;
     boot.loader.grub.enable = false;
     
-    hardware.firmware = with pkgs; [ firmwareLinuxNonfree ];
+    hardware.firmware = with pkgs; [ linux-firmware ];
     hardware.deviceTree = mkIf (cfg.deviceTree != null) {
       enable = true;
       name = cfg.deviceTree;
