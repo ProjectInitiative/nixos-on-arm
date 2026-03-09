@@ -12,18 +12,16 @@
   
   rockchip = {
     enable = true;
-    uboot.package = pkgs.ubootRock64;
+    uboot.package = pkgs.ubootRenegade;
     deviceTree = "rockchip/rk3328-roc-cc.dtb";
     
-    # We set these here, even if rockchip-image.nix doesn't use them yet
-    # to maintain consistency with other board files.
     console = {
       earlycon = "uart8250,mmio32,0xff130000";
       console = "ttyS2,1500000n8";
     };
   };
 
-  # Manually set kernel params since we're not updating the module yet
+  # Manually set kernel params
   boot.kernelParams = [
     "console=tty1"
     "console=ttyS2,1500000n8"

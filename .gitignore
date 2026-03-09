@@ -3,6 +3,7 @@
 *sensitive.yaml
 ####==  Env   ==####
 .env
+.direnv
 ####==  Nix   ==####
 *.tar.xz
 *.tar.gz

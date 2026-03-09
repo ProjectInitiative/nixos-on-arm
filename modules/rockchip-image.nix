@@ -42,7 +42,7 @@ in
   ###### Implementation ######
   config = mkIf cfg.enable {
     # A. Configure systemd-boot + UKI boot
-    boot.kernelPackages = pkgs.linuxPackages_latest;
+    boot.kernelPackages = lib.mkDefault pkgs.linuxPackages;
     boot.loader.systemd-boot.enable = true;
     boot.loader.grub.enable = false;
     

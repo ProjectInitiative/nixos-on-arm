@@ -66,4 +66,15 @@ final: prev: {
     ];
   };
 
+  ubootRenegade = prev.buildUBoot {
+    defconfig = "roc-cc-rk3328_defconfig";
+    extraMeta.platforms = [ "aarch64-linux" ];
+    BL31 = "${prev.armTrustedFirmwareRK3328}/bl31.elf";
+    filesToInstall = [
+      "u-boot.itb"
+      "idbloader.img"
+      "u-boot-rockchip.bin"
+    ];
+  };
+
 }
