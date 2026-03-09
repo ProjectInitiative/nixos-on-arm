@@ -33,6 +33,12 @@
         demoFile = ./demo/orange-pi-5-ultra-demo.nix;
         description = "Orange Pi 5 Ultra (RK3588)";
       };
+      nanopir6s = {
+        hostPlatform = "aarch64-linux";
+        bootOnlyFile = ./boot/nanopi-r6s-boot.nix;
+        demoFile = ./demo/nanopi-r6s-demo.nix;
+        description = "FriendlyElec NanoPi R6S (RK3588S)";
+      };
     };
 
     # Function to create nixosConfiguration
@@ -95,7 +101,8 @@
     nixosConfigurations =
       (mkBoardConfigurations "e52c") //
       (mkBoardConfigurations "rock5a") //
-      (mkBoardConfigurations "orangepi5ultra");
+      (mkBoardConfigurations "orangepi5ultra") //
+      (mkBoardConfigurations "nanopir6s");
 
     # System-specific packages organized by board
     packages = forAllSystems (system:
@@ -117,6 +124,11 @@
         orangepi5ultra = mkImg "orangepi5ultra" self.demoModules.orangepi5ultra; # alias → demo
         orangepi5ultra-demo = mkImg "orangepi5ultra" self.demoModules.orangepi5ultra;
         orangepi5ultra-boot = mkImg "orangepi5ultra" self.bootModules.orangepi5ultra;
+
+        # --- NanoPi R6S ---
+        nanopir6s = mkImg "nanopir6s" self.demoModules.nanopir6s; # alias → demo
+        nanopir6s-demo = mkImg "nanopir6s" self.demoModules.nanopir6s;
+        nanopir6s-boot = mkImg "nanopir6s" self.bootModules.nanopir6s;
       }
     );
 
@@ -143,6 +155,10 @@
           echo "  nix build .#orangepi5ultra      # Demo image (default alias)"
           echo "  nix build .#orangepi5ultra-demo # Explicit demo image"
           echo "  nix build .#orangepi5ultra-boot # Barebones boot-only image"
+          echo ""
+          echo "  nix build .#nanopir6s      # Demo image (default alias)"
+          echo "  nix build .#nanopir6s-demo # Explicit demo image"
+          echo "  nix build .#nanopir6s-boot # Barebones boot-only image"
         '';
       };
     });

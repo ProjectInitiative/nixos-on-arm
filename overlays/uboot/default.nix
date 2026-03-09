@@ -54,5 +54,16 @@ final: prev: {
     ];
   };
 
+  ubootNanopiR6S = prev.buildUBoot {
+    defconfig = "nanopi-r6s-rk3588s_defconfig";
+    extraMeta.platforms = [ "aarch64-linux" ];
+    BL31 = "${prev.armTrustedFirmwareRK3588}/bl31.elf";
+    ROCKCHIP_TPL = prev.rkbin.TPL_RK3588;
+    filesToInstall = [
+      "u-boot.itb"
+      "idbloader.img"
+      "u-boot-rockchip.bin"
+    ];
+  };
 
 }
