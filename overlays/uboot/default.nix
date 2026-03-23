@@ -8,6 +8,7 @@ final: prev: {
       ./patches/0002-rockchip-rk3588-generic-Enable-support-for-RK3582.patch
     ];
 
+    extraMeta.platforms = [ "aarch64-linux" ];
     BL31 = "${prev.armTrustedFirmwareRK3588}/bl31.elf";
     ROCKCHIP_TPL = prev.rkbin.TPL_RK3588;
     
