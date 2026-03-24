@@ -1,10 +1,11 @@
-{ config, lib, pkgs, modulesPath, ... }:
+{ config, lib, pkgs, modulesPath, hostPkgs ? pkgs.buildPackages, ... }:
 with lib;
 let
   cfg = config.rockchip;
   ubootPackage = cfg.uboot.package;
-  # Import the fixed assembler module
-  assembleMonolithicImage = import ./assemble-monolithic-image.nix;
+  # Use hostPkgs for tools that must run on the build host
+  # Fallback to pkgs.buildPackages if hostPkgs isn't provided (e.g. native builds)
+  assemblerPkgs = hostPkgs;
 in
 {
   imports = [
@@ -53,8 +54,8 @@ in
     };
     
     # B. Build partition images with systemd-boot pre-installed
-    # FIX: Use pkgs.buildPackages to ensure these run on the host during cross-compilation
-    system.build.nixosBootPartitionImage = pkgs.buildPackages.callPackage ./make-fat-fs.nix {
+    # FIX: Use assemblerPkgs to ensure these run on the host (hybrid/cross-compilation)
+    system.build.nixosBootPartitionImage = assemblerPkgs.callPackage ./make-fat-fs.nix {
       volumeLabel = "NIXOS_BOOT";
       size = "256M";
       populateImageCommands = ''
@@ -89,15 +90,15 @@ in
       storePaths = [ ];
     };
     
-    system.build.nixosRootfsPartitionImage = pkgs.buildPackages.callPackage "${pkgs.path}/nixos/lib/make-ext4-fs.nix" {
+    system.build.nixosRootfsPartitionImage = assemblerPkgs.callPackage "${pkgs.path}/nixos/lib/make-ext4-fs.nix" {
       storePaths = [ config.system.build.toplevel ];
       volumeLabel = "NIXOS_ROOT";
       compressImage = false;
     };
     
     # C. Assemble the final image
-    # FIX: Use pkgs.buildPackages to ensure image assembly runs on the host
-    system.build.rockchipImages = pkgs.buildPackages.callPackage ./assemble-monolithic-image.nix {
+    # FIX: Use assemblerPkgs to ensure image assembly runs on the host
+    system.build.rockchipImages = assemblerPkgs.callPackage ./assemble-monolithic-image.nix {
       ubootIdbloaderFile = "${ubootPackage}/idbloader.img";
       ubootItbFile = "${ubootPackage}/u-boot.itb";
       ubootSpiFile = if builtins.pathExists "${ubootPackage}/u-boot-rockchip-spi.bin" then "${ubootPackage}/u-boot-rockchip-spi.bin" else null;

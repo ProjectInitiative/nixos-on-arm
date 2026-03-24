@@ -49,11 +49,19 @@
 
     # Function to create nixosConfiguration
     mkBoardConfiguration = board: buildSystem: modules:
+      let
+        hostPkgs = nixpkgs.legacyPackages.${buildSystem};
+      in
       nixpkgs.lib.nixosSystem {
+        # Use specialArgs to pass host's pkgs into the modules
+        specialArgs = { inherit hostPkgs; };
         modules = modules ++ [
           ({ pkgs, ... }: {
             nixpkgs.overlays = [ self.overlays.default ];
-            nixpkgs.buildPlatform = buildSystem;
+            # If we're on the same architecture, it's just native.
+            # If we're on x86, we set hostPlatform to ARM but DON'T set buildPlatform
+            # to x86 unless we want pure cross-compilation. 
+            # Setting hostPlatform alone triggers emulated native builds.
             nixpkgs.hostPlatform = boards.${board}.hostPlatform;
             nixpkgs.config.allowUnsupportedSystem = true;
           })
