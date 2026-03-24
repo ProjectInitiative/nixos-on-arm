@@ -4,7 +4,7 @@
 {
   # Import the minimal boot configuration
   imports = [ 
-    ../boot/rock5a-boot.nix
+    ../boot/e52c-boot.nix
   ];
   
   # Override image variants to include U-Boot only for demos
@@ -15,7 +15,7 @@
   };
   
   # Minimal system defaults
-  networking.hostName = lib.mkDefault "nixos-rock-5a";
+  networking.hostName = lib.mkDefault "nixos-e52c";
   time.timeZone = lib.mkDefault "Etc/UTC";
   
   # Demo user accounts
