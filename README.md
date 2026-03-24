@@ -206,7 +206,41 @@ This way, you can treat the board setup as a foundation, while layering on your 
 
 ---
 
-## Features
+## Building Strategy (Hybrid vs. Full Cross-Compilation)
+
+By default, this project uses a **Hybrid Building Approach** when building on `x86_64` for `aarch64`. 
+
+### 1. **Hybrid Mode (Default)**
+*   **System Binaries**: Evaluated as native `aarch64-linux` (pulls from official NixOS cache via QEMU for small tasks).
+*   **Image Assembly**: Uses native `x86_64` host tools (`sfdisk`, `mtools`, `truncate`, `dd`).
+*   **Benefit**: Fastest overall build. You get cache hits for the standard NixOS system while keeping disk-intensive image creation native and reliable.
+
+### 2. **Full Cross-Compilation**
+*   **System Binaries**: Formally cross-compiled from `x86_64` to `aarch64`.
+*   **Image Assembly**: Uses native `x86_64` host tools.
+*   **Benefit**: Faster compilation for things that *must* be built (like custom kernels), but requires building most of the system from scratch (as hashes differ from the official ARM cache).
+
+### How to Switch
+
+To switch to **Full Cross-Compilation**, modify `flake.nix` in the `mkBoardConfiguration` function:
+
+```nix
+# Edit flake.nix:
+nixpkgs.lib.nixosSystem {
+  modules = modules ++ [
+    ({ pkgs, ... }: {
+      # ...
+      nixpkgs.buildPlatform = buildSystem; # <--- ADD THIS LINE
+      nixpkgs.hostPlatform = boards.${board}.hostPlatform;
+      # ...
+    })
+  ];
+}
+```
+
+Adding `nixpkgs.buildPlatform = buildSystem;` triggers the formal cross-compiler. Removing it (default) restores Hybrid/Emulated mode.
+
+---
 
 * **🚀 Cross-Platform**: Build from x86\_64 or native ARM
 * **🎯 Variant System**: Boot-only vs demo images per board
