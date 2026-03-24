@@ -50,10 +50,10 @@
     # Function to create nixosConfiguration
     mkBoardConfiguration = board: buildSystem: modules:
       nixpkgs.lib.nixosSystem {
-        system = buildSystem;
         modules = modules ++ [
           ({ pkgs, ... }: {
             nixpkgs.overlays = [ self.overlays.default ];
+            nixpkgs.buildPlatform = buildSystem;
             nixpkgs.hostPlatform = boards.${board}.hostPlatform;
             nixpkgs.config.allowUnsupportedSystem = true;
           })

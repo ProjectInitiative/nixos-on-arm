@@ -53,7 +53,8 @@ in
     };
     
     # B. Build partition images with systemd-boot pre-installed
-    system.build.nixosBootPartitionImage = pkgs.callPackage ./make-fat-fs.nix {
+    # FIX: Use pkgs.buildPackages to ensure these run on the host during cross-compilation
+    system.build.nixosBootPartitionImage = pkgs.buildPackages.callPackage ./make-fat-fs.nix {
       volumeLabel = "NIXOS_BOOT";
       size = "256M";
       populateImageCommands = ''
@@ -64,6 +65,7 @@ in
         mkdir -p ./files/loader/entries
         
         # Pre-install systemd-boot as the main bootloader
+        # We still need the AA64 version for the target, so we use target pkgs
         cp ${pkgs.systemd}/lib/systemd/boot/efi/systemd-bootaa64.efi ./files/EFI/BOOT/BOOTAA64.EFI
         cp ${pkgs.systemd}/lib/systemd/boot/efi/systemd-bootaa64.efi ./files/EFI/systemd/systemd-bootaa64.efi
         
@@ -87,15 +89,15 @@ in
       storePaths = [ ];
     };
     
-    system.build.nixosRootfsPartitionImage = pkgs.callPackage "${pkgs.path}/nixos/lib/make-ext4-fs.nix" {
+    system.build.nixosRootfsPartitionImage = pkgs.buildPackages.callPackage "${pkgs.path}/nixos/lib/make-ext4-fs.nix" {
       storePaths = [ config.system.build.toplevel ];
       volumeLabel = "NIXOS_ROOT";
       compressImage = false;
     };
     
     # C. Assemble the final image
-    system.build.rockchipImages = assembleMonolithicImage {
-      inherit pkgs lib;
+    # FIX: Use pkgs.buildPackages to ensure image assembly runs on the host
+    system.build.rockchipImages = pkgs.buildPackages.callPackage ./assemble-monolithic-image.nix {
       ubootIdbloaderFile = "${ubootPackage}/idbloader.img";
       ubootItbFile = "${ubootPackage}/u-boot.itb";
       ubootSpiFile = if builtins.pathExists "${ubootPackage}/u-boot-rockchip-spi.bin" then "${ubootPackage}/u-boot-rockchip-spi.bin" else null;
