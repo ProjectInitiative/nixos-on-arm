@@ -60,7 +60,7 @@
           ({ pkgs, lib, ... }: {
             nixpkgs.overlays = [ self.overlays.default ];
             # Setting hostPlatform alone triggers emulated native builds.
-            # For cross-compilation mode (-cross-* variants), also set buildPlatform.
+            # For cross-compilation mode (*-cross variants), also set buildPlatform.
             nixpkgs.hostPlatform = boards.${board}.hostPlatform;
             nixpkgs.buildPlatform = lib.mkIf isCross buildSystem;
             nixpkgs.config.allowUnsupportedSystem = true;
@@ -78,11 +78,11 @@
           (self.bootModules.${board});
 
       # Optionally, also export cross builds
-      "${board}-cross-demo" =
+      "${board}-demo-cross" =
         mkBoardConfiguration board "x86_64-linux"
           (self.demoModules.${board});
 
-      "${board}-cross-boot" =
+      "${board}-boot-cross" =
         mkBoardConfiguration board "x86_64-linux"
           (self.bootModules.${board});
     };
@@ -115,7 +115,7 @@
           nixpkgs.hostPlatform = board.hostPlatform;
           nixpkgs.config.allowUnsupportedSystem = true;
           # Use pre-built patched kernel when native (shares cache across boards).
-          # When cross-compiling via -cross-* variants, nixpkgs cross-compiles
+          # When cross-compiling via *-cross variants, nixpkgs cross-compiles
           # pkgs.linuxPackages automatically with nixpkgs.buildPlatform set.
           boot.kernelPackages = lib.mkIf (pkgs.stdenv.buildPlatform == pkgs.stdenv.hostPlatform)
             (lib.mkForce self.linuxPackages.${pkgs.stdenv.hostPlatform.system});
@@ -152,31 +152,43 @@
       let
         mkImg = board: modules:
           (mkBoardConfiguration board system modules).config.system.build.rockchipImages;
+        mkCrossImg = board: modules:
+          (mkBoardConfiguration board "x86_64-linux" modules).config.system.build.rockchipImages;
       in {
         # --- E52C ---
         e52c = mkImg "e52c" self.demoModules.e52c;   # alias → demo
         e52c-demo = mkImg "e52c" self.demoModules.e52c;
         e52c-boot = mkImg "e52c" self.bootModules.e52c;
+        e52c-demo-cross = mkCrossImg "e52c" self.demoModules.e52c;
+        e52c-boot-cross = mkCrossImg "e52c" self.bootModules.e52c;
 
         # --- Rock5A ---
         rock5a = mkImg "rock5a" self.demoModules.rock5a; # alias → demo
         rock5a-demo = mkImg "rock5a" self.demoModules.rock5a;
         rock5a-boot = mkImg "rock5a" self.bootModules.rock5a;
+        rock5a-demo-cross = mkCrossImg "rock5a" self.demoModules.rock5a;
+        rock5a-boot-cross = mkCrossImg "rock5a" self.bootModules.rock5a;
 
         # --- Orange Pi 5 Ultra ---
         orangepi5ultra = mkImg "orangepi5ultra" self.demoModules.orangepi5ultra; # alias → demo
         orangepi5ultra-demo = mkImg "orangepi5ultra" self.demoModules.orangepi5ultra;
         orangepi5ultra-boot = mkImg "orangepi5ultra" self.bootModules.orangepi5ultra;
+        orangepi5ultra-demo-cross = mkCrossImg "orangepi5ultra" self.demoModules.orangepi5ultra;
+        orangepi5ultra-boot-cross = mkCrossImg "orangepi5ultra" self.bootModules.orangepi5ultra;
 
         # --- NanoPi R6S ---
         nanopir6s = mkImg "nanopir6s" self.demoModules.nanopir6s; # alias → demo
         nanopir6s-demo = mkImg "nanopir6s" self.demoModules.nanopir6s;
         nanopir6s-boot = mkImg "nanopir6s" self.bootModules.nanopir6s;
+        nanopir6s-demo-cross = mkCrossImg "nanopir6s" self.demoModules.nanopir6s;
+        nanopir6s-boot-cross = mkCrossImg "nanopir6s" self.bootModules.nanopir6s;
 
         # --- ROC-RK3328-CC Renegade ---
         renegade = mkImg "renegade" self.demoModules.renegade;   # alias → demo
         renegade-demo = mkImg "renegade" self.demoModules.renegade;
         renegade-boot = mkImg "renegade" self.bootModules.renegade;
+        renegade-demo-cross = mkCrossImg "renegade" self.demoModules.renegade;
+        renegade-boot-cross = mkCrossImg "renegade" self.bootModules.renegade;
       }
     );
 
@@ -191,26 +203,23 @@
         shellHook = ''
           echo "Available boards: ${builtins.concatStringsSep ", " (builtins.attrNames boards)}"
           echo ""
-          echo "Build commands:"
-          echo "  nix build .#e52c        # Demo image (default alias)"
-          echo "  nix build .#e52c-demo   # Explicit demo image"
-          echo "  nix build .#e52c-boot   # Barebones boot-only image"
+          echo "Native (emulated) builds — nix build .#<board>-<variant>:"
+          echo "  e52c-boot   # QEMU-emulated aarch64 kernel (~6h)"
+          echo "  e52c-demo   # Demo with users/network"
+          echo "  rock5a-boot"
+          echo "  rock5a-demo"
+          echo "  orangepi5ultra-{boot,demo}"
+          echo "  nanopir6s-{boot,demo}"
+          echo "  renegade-{boot,demo}"
           echo ""
-          echo "  nix build .#rock5a      # Demo image (default alias)"
-          echo "  nix build .#rock5a-demo # Explicit demo image"
-          echo "  nix build .#rock5a-boot # Barebones boot-only image"
-          echo ""
-          echo "  nix build .#orangepi5ultra      # Demo image (default alias)"
-          echo "  nix build .#orangepi5ultra-demo # Explicit demo image"
-          echo "  nix build .#orangepi5ultra-boot # Barebones boot-only image"
-          echo ""
-          echo "  nix build .#nanopir6s      # Demo image (default alias)"
-          echo "  nix build .#nanopir6s-demo # Explicit demo image"
-          echo "  nix build .#nanopir6s-boot # Barebones boot-only image"
-          echo ""
-          echo "  nix build .#renegade      # Demo image (default alias)"
-          echo "  nix build .#renegade-demo # Explicit demo image"
-          echo "  nix build .#renegade-boot # Barebones boot-only image"
+          echo "Cross-compiled builds (fast, x86_64 → aarch64) — nix build .#<board>-<variant>-cross:"
+          echo "  e52c-boot-cross   # ~1h instead of ~6h"
+          echo "  e52c-demo-cross"
+          echo "  rock5a-boot-cross"
+          echo "  rock5a-demo-cross"
+          echo "  orangepi5ultra-{boot,demo}-cross"
+          echo "  nanopir6s-{boot,demo}-cross"
+          echo "  renegade-{boot,demo}-cross"
         '';
       };
     });
