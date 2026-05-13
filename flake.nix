@@ -48,21 +48,20 @@
     };
 
     # Function to create nixosConfiguration
+    # buildSystem is the platform running the build (e.g., "x86_64-linux" or "aarch64-linux").
+    # hostPlatform is always set to the board's target.
+    # We do NOT set buildPlatform globally — only the kernel is cross-compiled
+    # via a dedicated linuxPackagesCross set in *-cross variants.
     mkBoardConfiguration = board: buildSystem: modules:
       let
         hostPkgs = nixpkgs.legacyPackages.${buildSystem};
-        isCross = buildSystem != boards.${board}.hostPlatform;
       in
       nixpkgs.lib.nixosSystem {
-        # Use specialArgs to pass host's pkgs into the modules
         specialArgs = { inherit hostPkgs; };
         modules = modules ++ [
-          ({ pkgs, lib, ... }: {
+          ({ pkgs, ... }: {
             nixpkgs.overlays = [ self.overlays.default ];
-            # Setting hostPlatform alone triggers emulated native builds.
-            # For cross-compilation mode (*-cross variants), also set buildPlatform.
             nixpkgs.hostPlatform = boards.${board}.hostPlatform;
-            nixpkgs.buildPlatform = lib.mkIf isCross buildSystem;
             nixpkgs.config.allowUnsupportedSystem = true;
           })
         ];
@@ -77,14 +76,17 @@
         mkBoardConfiguration board boards.${board}.hostPlatform
           (self.bootModules.${board});
 
-      # Optionally, also export cross builds
       "${board}-demo-cross" =
-        mkBoardConfiguration board "x86_64-linux"
-          (self.demoModules.${board});
+        mkBoardConfiguration board boards.${board}.hostPlatform
+          (self.demoModules.${board} ++ [({ pkgs, lib, ... }: {
+            boot.kernelPackages = lib.mkOverride 40 self.linuxPackagesCross.x86_64-linux;
+          })]);
 
       "${board}-boot-cross" =
-        mkBoardConfiguration board "x86_64-linux"
-          (self.bootModules.${board});
+        mkBoardConfiguration board boards.${board}.hostPlatform
+          (self.bootModules.${board} ++ [({ pkgs, lib, ... }: {
+            boot.kernelPackages = lib.mkOverride 40 self.linuxPackagesCross.x86_64-linux;
+          })]);
     };
   in
   {
@@ -106,6 +108,24 @@
       pkgs.linuxPackagesFor patchedKernel
     );
 
+    # Cross-compiled kernel packages (x86_64 → aarch64) for *-cross variants.
+    # Built on x86_64, outputs aarch64 kernel. Only the kernel is cross-compiled;
+    # all other packages remain native aarch64 (pulled from cache or QEMU).
+    linuxPackagesCross = forAllSystems (system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+        crossPkgs = pkgs.pkgsCross.aarch64-multiplatform;
+        rk3588Patch = ./modules/patches/0001-phy-rockchip-naneng-combphy-Add-PCIe-PHY-tuning-for-RK3588.patch;
+        patchedKernel = crossPkgs.linuxPackages.kernel.override {
+          kernelPatches = (crossPkgs.linuxPackages.kernel.kernelPatches or []) ++ [{
+            name = "rk3588-combphy-pcie-tuning";
+            patch = rk3588Patch;
+          }];
+        };
+      in
+      crossPkgs.linuxPackagesFor patchedKernel
+    );
+
     # Barebones board modules (no users/network)
     bootModules = nixpkgs.lib.mapAttrs
       (name: board: [
@@ -114,11 +134,8 @@
           nixpkgs.overlays = [ self.overlays.default ];
           nixpkgs.hostPlatform = board.hostPlatform;
           nixpkgs.config.allowUnsupportedSystem = true;
-          # Use pre-built patched kernel when native (shares cache across boards).
-          # When cross-compiling via *-cross variants, nixpkgs cross-compiles
-          # pkgs.linuxPackages automatically with nixpkgs.buildPlatform set.
-          boot.kernelPackages = lib.mkIf (pkgs.stdenv.buildPlatform == pkgs.stdenv.hostPlatform)
-            (lib.mkForce self.linuxPackages.${pkgs.stdenv.hostPlatform.system});
+          # Use nixos-on-arm's patched kernel automatically
+          boot.kernelPackages = lib.mkForce self.linuxPackages.${pkgs.stdenv.hostPlatform.system};
         })
       ])
       boards;
@@ -132,9 +149,7 @@
           nixpkgs.hostPlatform = board.hostPlatform;
           nixpkgs.config.allowUnsupportedSystem = true;
           nixpkgs.config.allowUnfree = true;
-          # Same native/cross logic as bootModules
-          boot.kernelPackages = lib.mkIf (pkgs.stdenv.buildPlatform == pkgs.stdenv.hostPlatform)
-            (lib.mkDefault self.linuxPackages.${pkgs.stdenv.hostPlatform.system});
+          boot.kernelPackages = lib.mkDefault self.linuxPackages.${pkgs.stdenv.hostPlatform.system};
         })
       ])
       boards;
@@ -153,7 +168,9 @@
         mkImg = board: modules:
           (mkBoardConfiguration board system modules).config.system.build.rockchipImages;
         mkCrossImg = board: modules:
-          (mkBoardConfiguration board "x86_64-linux" modules).config.system.build.rockchipImages;
+          (mkBoardConfiguration board system (modules ++ [({ pkgs, lib, ... }: {
+            boot.kernelPackages = lib.mkOverride 40 self.linuxPackagesCross.x86_64-linux;
+          })])).config.system.build.rockchipImages;
       in {
         # --- E52C ---
         e52c = mkImg "e52c" self.demoModules.e52c;   # alias → demo

@@ -215,10 +215,62 @@ By default, this project uses a **Hybrid Building Approach** when building on `x
 *   **Image Assembly**: Uses native `x86_64` host tools (`sfdisk`, `mtools`, `truncate`, `dd`).
 *   **Benefit**: Fastest overall build. You get cache hits for the standard NixOS system while keeping disk-intensive image creation native and reliable.
 
-### 2. **Full Cross-Compilation**
+### 2. **Kernel-Only Cross-Compilation (Current Best Practice)**
+*  **Kernel**: Cross-compiled from `x86_64` → `aarch64` via `linuxPackagesCross` (fast, avoids QEMU for the kernel).
+*  **Everything else**: Native `aarch64-linux`, pulled from official NixOS cache.
+*  **Benefit**: Avoids the 6-hour QEMU kernel build without rebuilding the entire system. This is what `nix build .#e52c-boot-cross` does.
+
+### 3. **Full Cross-Compilation (Slow initial, cached after)**
 *   **System Binaries**: Formally cross-compiled from `x86_64` to `aarch64`.
 *   **Image Assembly**: Uses native `x86_64` host tools.
-*   **Benefit**: Faster compilation for things that *must* be built (like custom kernels), but requires building most of the system from scratch (as hashes differ from the official ARM cache).
+*   **Benefit**: Every package cross-compiled once, cached forever. Good for CI pipelines.
+*   **Downside**: First build rebuilds everything from source (different derivation hashes than official cache).
+
+### Future Exploration: Content-Addressed Fallback
+
+Nix's content-addressed derivations (CA) are an experimental feature where the output hash is derived from the **content**, not the build inputs. This would allow:
+
+- Evaluate as full cross-compilation (all derivations use `aarch64-unknown-linux-gnu-gcc`)
+- If the cross-compiled output is byte-for-byte identical to a cached native binary, Nix skips the build
+- If not (e.g., a package that inlines `__DATE__` or has target-specific code), it builds from source
+
+This gives the "try native cache first, fall back to cross-compile" behavior, but with a clean architecture. It requires:
+
+1. Enabling `__contentAddressed` on the relevant derivations
+2. Changes in nixpkgs to mark packages as CA
+3. A CI pipeline that builds cross packages and seeds the cache
+
+For now, the kernel-only cross approach (`*-boot-cross`) is the best tradeoff for individual developers. Full cross-compilation with CA is worth revisiting when Nix's CA support matures.
+
+### Consuming the Cross-Compiled Kernel
+
+Other flakes can use the cross-compiled kernel directly via the exported `linuxPackagesCross` output:
+
+```nix
+{
+  inputs.nixos-on-arm.url = "github:kylepzak/nixos-on-arm";
+
+  outputs = { self, nixpkgs, nixos-on-arm, ... }: {
+    nixosConfigurations.myboard = nixpkgs.lib.nixosSystem {
+      modules = [
+        ({ pkgs, lib, ... }: {
+          nixpkgs.hostPlatform = "aarch64-linux";
+          # Cross-compiled kernel (x86_64 → aarch64), rest from cache
+          boot.kernelPackages = lib.mkForce nixos-on-arm.linuxPackagesCross.x86_64-linux;
+        })
+      ];
+    };
+  };
+}
+```
+
+Or use the pre-built configs directly:
+
+```bash
+nix build 'github:kylepzak/nixos-on-arm#e52c-boot-cross'
+```
+
+All `*-boot-cross` and `*-demo-cross` variants are available in both `packages` and `nixosConfigurations` outputs.
 
 ### How to Switch
 
@@ -238,7 +290,7 @@ nixpkgs.lib.nixosSystem {
 }
 ```
 
-Adding `nixpkgs.buildPlatform = buildSystem;` triggers the formal cross-compiler. Removing it (default) restores Hybrid/Emulated mode.
+Adding `nixpkgs.buildPlatform = buildSystem;` triggers the formal cross-compiler (full system rebuild, slow initially). Removing it (default) restores Hybrid/Emulated mode with only the kernel cross-compiled.
 
 ---
 
