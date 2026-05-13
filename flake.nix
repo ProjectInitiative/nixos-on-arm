@@ -51,18 +51,18 @@
     mkBoardConfiguration = board: buildSystem: modules:
       let
         hostPkgs = nixpkgs.legacyPackages.${buildSystem};
+        isCross = buildSystem != boards.${board}.hostPlatform;
       in
       nixpkgs.lib.nixosSystem {
         # Use specialArgs to pass host's pkgs into the modules
         specialArgs = { inherit hostPkgs; };
         modules = modules ++ [
-          ({ pkgs, ... }: {
+          ({ pkgs, lib, ... }: {
             nixpkgs.overlays = [ self.overlays.default ];
-            # If we're on the same architecture, it's just native.
-            # If we're on x86, we set hostPlatform to ARM but DON'T set buildPlatform
-            # to x86 unless we want pure cross-compilation. 
             # Setting hostPlatform alone triggers emulated native builds.
+            # For cross-compilation mode (-cross-* variants), also set buildPlatform.
             nixpkgs.hostPlatform = boards.${board}.hostPlatform;
+            nixpkgs.buildPlatform = lib.mkIf isCross buildSystem;
             nixpkgs.config.allowUnsupportedSystem = true;
           })
         ];
@@ -81,6 +81,10 @@
       "${board}-cross-demo" =
         mkBoardConfiguration board "x86_64-linux"
           (self.demoModules.${board});
+
+      "${board}-cross-boot" =
+        mkBoardConfiguration board "x86_64-linux"
+          (self.bootModules.${board});
     };
   in
   {
@@ -110,8 +114,11 @@
           nixpkgs.overlays = [ self.overlays.default ];
           nixpkgs.hostPlatform = board.hostPlatform;
           nixpkgs.config.allowUnsupportedSystem = true;
-          # Use nixos-on-arm's patched kernel automatically (overrides rockchip-image.nix default)
-          boot.kernelPackages = lib.mkForce self.linuxPackages.${pkgs.stdenv.hostPlatform.system};
+          # Use pre-built patched kernel when native (shares cache across boards).
+          # When cross-compiling via -cross-* variants, nixpkgs cross-compiles
+          # pkgs.linuxPackages automatically with nixpkgs.buildPlatform set.
+          boot.kernelPackages = lib.mkIf (pkgs.stdenv.buildPlatform == pkgs.stdenv.hostPlatform)
+            (lib.mkForce self.linuxPackages.${pkgs.stdenv.hostPlatform.system});
         })
       ])
       boards;
@@ -125,7 +132,9 @@
           nixpkgs.hostPlatform = board.hostPlatform;
           nixpkgs.config.allowUnsupportedSystem = true;
           nixpkgs.config.allowUnfree = true;
-          boot.kernelPackages = lib.mkDefault self.linuxPackages.${pkgs.stdenv.hostPlatform.system};
+          # Same native/cross logic as bootModules
+          boot.kernelPackages = lib.mkIf (pkgs.stdenv.buildPlatform == pkgs.stdenv.hostPlatform)
+            (lib.mkDefault self.linuxPackages.${pkgs.stdenv.hostPlatform.system});
         })
       ])
       boards;
