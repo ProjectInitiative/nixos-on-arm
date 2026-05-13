@@ -43,7 +43,7 @@ in
   ###### Implementation ######
   config = mkIf cfg.enable {
     # A. Configure systemd-boot + UKI boot
-    boot.kernelPackages = lib.mkDefault pkgs.linuxPackages;
+    # boot.kernelPackages is set per-board in flake.nix
     boot.loader.systemd-boot.enable = true;
     boot.loader.grub.enable = false;
     

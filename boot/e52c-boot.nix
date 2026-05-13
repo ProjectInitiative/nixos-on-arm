@@ -12,7 +12,7 @@
     "usbnet" "cdc_ether" "rndis_host" # USB networking (for recovery/debug)
   ];
   
-  # RK3588 combo PHY PCIe errata/tuning from vendor kernel (force_det_out, SSC)
+  # RK3588 combo PHY PCIe errata/tuning (safety net for custom kernel overrides)
   boot.kernelPatches = [
     {
       name = "rk3588-combphy-pcie-tuning";

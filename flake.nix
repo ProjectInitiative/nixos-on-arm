@@ -106,23 +106,26 @@
     bootModules = nixpkgs.lib.mapAttrs
       (name: board: [
         board.bootOnlyFile
-        ({ pkgs, ... }: {
+        ({ pkgs, lib, ... }: {
           nixpkgs.overlays = [ self.overlays.default ];
           nixpkgs.hostPlatform = board.hostPlatform;
           nixpkgs.config.allowUnsupportedSystem = true;
+          # Use nixos-on-arm's patched kernel automatically (overrides rockchip-image.nix default)
+          boot.kernelPackages = lib.mkForce self.linuxPackages.${pkgs.stdenv.hostPlatform.system};
         })
       ])
       boards;
 
-    # Demo modules (insecure, dev-only)
+    # Same for demo modules
     demoModules = nixpkgs.lib.mapAttrs
       (name: board: [
         board.demoFile
-        ({ pkgs, ... }: {
+        ({ pkgs, lib, ... }: {
           nixpkgs.overlays = [ self.overlays.default ];
           nixpkgs.hostPlatform = board.hostPlatform;
           nixpkgs.config.allowUnsupportedSystem = true;
           nixpkgs.config.allowUnfree = true;
+          boot.kernelPackages = lib.mkDefault self.linuxPackages.${pkgs.stdenv.hostPlatform.system};
         })
       ])
       boards;
