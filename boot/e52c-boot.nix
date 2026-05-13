@@ -12,6 +12,14 @@
     "usbnet" "cdc_ether" "rndis_host" # USB networking (for recovery/debug)
   ];
   
+  # RK3588 combo PHY PCIe errata/tuning from vendor kernel (force_det_out, SSC)
+  boot.kernelPatches = [
+    {
+      name = "rk3588-combphy-pcie-tuning";
+      patch = ../modules/patches/0001-phy-rockchip-naneng-combphy-Add-PCIe-PHY-tuning-for-RK3588.patch;
+    }
+  ];
+
   # Rockchip board configuration - hardware specific
   rockchip = {
     enable = true;
