@@ -86,6 +86,22 @@
   {
     overlays.default = import ./overlays/uboot;
 
+    # Kernel packages patched for Rockchip SoC quirks
+    # Consumers can pin to this to share the same cached kernel build
+    linuxPackages = forAllSystems (system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+        rk3588Patch = ./modules/patches/0001-phy-rockchip-naneng-combphy-Add-PCIe-PHY-tuning-for-RK3588.patch;
+        patchedKernel = pkgs.linuxPackages.kernel.override {
+          kernelPatches = (pkgs.linuxPackages.kernel.kernelPatches or []) ++ [{
+            name = "rk3588-combphy-pcie-tuning";
+            patch = rk3588Patch;
+          }];
+        };
+      in
+      pkgs.linuxPackagesFor patchedKernel
+    );
+
     # Barebones board modules (no users/network)
     bootModules = nixpkgs.lib.mapAttrs
       (name: board: [
