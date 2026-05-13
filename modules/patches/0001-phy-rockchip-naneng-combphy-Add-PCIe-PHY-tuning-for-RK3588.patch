@@ -4,6 +4,7 @@ Subject: [PATCH] phy: rockchip-naneng-combphy: Add PCIe PHY tuning for RK3588
 
 Add PCIe-specific PHY tuning for the RK3588 combo PHY:
 - SSC downward spread spectrum configuration
+- Enable counting clock of the rterm detect for PCIe
 - PCIe receiver detection errata workaround (force_det_out)
 
 These settings are required for reliable PCIe operation with
@@ -18,7 +19,7 @@ diff --git a/drivers/phy/rockchip/phy-rockchip-naneng-combphy.c b/drivers/phy/ro
 index 5b0b3fc8571d..8e0eb52a1edc 100644
 --- a/drivers/phy/rockchip/phy-rockchip-naneng-combphy.c
 +++ b/drivers/phy/rockchip/phy-rockchip-naneng-combphy.c
-@@ -1240,6 +1240,13 @@ static int rk3588_combphy_cfg(struct rockchip_combphy_priv *priv)
+@@ -1243,6 +1243,13 @@ static int rk3588_combphy_cfg(struct rockchip_combphy_priv *priv)
  
  	switch (priv->type) {
  	case PHY_TYPE_PCIE:
@@ -32,8 +33,8 @@ index 5b0b3fc8571d..8e0eb52a1edc 100644
  		rockchip_combphy_param_write(priv->phy_grf, &cfg->con0_for_pcie, true);
  		rockchip_combphy_param_write(priv->phy_grf, &cfg->con1_for_pcie, true);
  		rockchip_combphy_param_write(priv->phy_grf, &cfg->con2_for_pcie, true);
-@@ -1360,6 +1367,9 @@ static int rk3588_combphy_cfg(struct rockchip_combphy_priv *priv)
- 		}
+@@ -1379,6 +1386,10 @@ static int rk3588_combphy_cfg(struct rockchip_combphy_priv *priv)
+ 		writel(val, priv->mmio + RK3568_PHYREG8);
  	}
  
 +	/* PCIe receiver detection errata workaround */
