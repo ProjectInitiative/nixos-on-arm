@@ -12,13 +12,9 @@
     "usbnet" "cdc_ether" "rndis_host" # USB networking (for recovery/debug)
   ];
   
-  # RK3588 combo PHY PCIe errata/tuning (safety net for custom kernel overrides)
-  boot.kernelPatches = [
-    {
-      name = "rk3588-combphy-pcie-tuning";
-      patch = ../modules/patches/0001-phy-rockchip-naneng-combphy-Add-PCIe-PHY-tuning-for-RK3588.patch;
-    }
-  ];
+  # RK3588 combo PHY PCIe errata/tuning is baked into the flake's
+  # linuxPackages / linuxPackagesCross kernel builds via kernelPatches
+  # override — no need to duplicate with boot.kernelPatches.
 
   # Rockchip board configuration - hardware specific
   rockchip = {
