@@ -97,16 +97,11 @@
     linuxPackages = forAllSystems (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        rk3588Patch = ./modules/patches/0001-phy-rockchip-naneng-combphy-Add-PCIe-PHY-tuning-for-RK3588.patch;
         patchedKernel = pkgs.linuxPackages.kernel.override {
           extraConfig = ''
             FW_LOADER_COMPRESS y
             FW_LOADER_COMPRESS_ZSTD y
           '';
-          kernelPatches = (pkgs.linuxPackages.kernel.kernelPatches or []) ++ [{
-            name = "rk3588-combphy-pcie-tuning";
-            patch = rk3588Patch;
-          }];
         };
       in
       pkgs.linuxPackagesFor patchedKernel
@@ -119,16 +114,11 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         crossPkgs = pkgs.pkgsCross.aarch64-multiplatform;
-        rk3588Patch = ./modules/patches/0001-phy-rockchip-naneng-combphy-Add-PCIe-PHY-tuning-for-RK3588.patch;
         patchedKernel = crossPkgs.linuxPackages.kernel.override {
           extraConfig = ''
             FW_LOADER_COMPRESS y
             FW_LOADER_COMPRESS_ZSTD y
           '';
-          kernelPatches = (crossPkgs.linuxPackages.kernel.kernelPatches or []) ++ [{
-            name = "rk3588-combphy-pcie-tuning";
-            patch = rk3588Patch;
-          }];
         };
       in
       crossPkgs.linuxPackagesFor patchedKernel
