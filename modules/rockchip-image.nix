@@ -23,6 +23,7 @@ in
       image = {
         name = mkOption { type = types.str; default = "nixos-rockchip"; };
         imagePaddingMB = mkOption { type = types.int; default = 100; };
+        bootPartitionSize = mkOption { type = types.str; default = "1G"; };
         fullImageBootOffsetMB = mkOption { type = types.int; default = 16; };
         osImageBootOffsetMB = mkOption { type = types.int; default = 1; };
         buildVariants = {
@@ -57,7 +58,7 @@ in
     # FIX: Use assemblerPkgs to ensure these run on the host (hybrid/cross-compilation)
     system.build.nixosBootPartitionImage = assemblerPkgs.callPackage ./make-fat-fs.nix {
       volumeLabel = "NIXOS_BOOT";
-      size = "256M";
+      size = cfg.image.bootPartitionSize;
       populateImageCommands = ''
         # Create required directories
         mkdir -p ./files/EFI/BOOT
