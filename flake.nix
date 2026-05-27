@@ -141,6 +141,16 @@
       crossPkgs.linuxPackagesFor patchedKernel
     );
 
+    # Cross-compiled RK3588 kernel (x86_64 → aarch64) with VEPU580/HDMI-RX patches.
+    # For Orange Pi 5 Ultra and similar boards that need board-specific kernel patches.
+    linuxPackagesRK3588Cross = forAllSystems (system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+        crossPkgs = pkgs.pkgsCross.aarch64-multiplatform;
+      in
+      import ./boot/kernels/orangepi5ultra/kernel.nix { pkgs = crossPkgs; lib = nixpkgs.lib; }
+    );
+
     # Barebones board modules (no users/network)
     bootModules = (nixpkgs.lib.mapAttrs
       (name: board: [
@@ -251,19 +261,15 @@
           echo "Available boards: ${builtins.concatStringsSep ", " (builtins.attrNames boards)}"
           echo ""
           echo "Native (emulated) builds — nix build .#<board>-<variant>:"
-          echo "  e52c-boot   # QEMU-emulated aarch64 kernel (~6h)"
-          echo "  e52c-demo   # Demo with users/network"
-          echo "  rock5a-boot"
-          echo "  rock5a-demo"
+          echo "  e52c-{boot,demo}   # ~6h emulated"
+          echo "  rock5a-{boot,demo}"
           echo "  orangepi5ultra-{boot,demo}"
           echo "  nanopir6s-{boot,demo}"
           echo "  renegade-{boot,demo}"
           echo ""
           echo "Cross-compiled builds (fast, x86_64 → aarch64) — nix build .#<board>-<variant>-cross:"
-          echo "  e52c-boot-cross   # ~1h instead of ~6h"
-          echo "  e52c-demo-cross"
-          echo "  rock5a-boot-cross"
-          echo "  rock5a-demo-cross"
+          echo "  e52c-{boot,demo}-cross   # ~1h"
+          echo "  rock5a-{boot,demo}-cross"
           echo "  orangepi5ultra-{boot,demo}-cross"
           echo "  nanopir6s-{boot,demo}-cross"
           echo "  renegade-{boot,demo}-cross"
