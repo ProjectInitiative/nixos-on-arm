@@ -107,6 +107,15 @@
       pkgs.linuxPackagesFor patchedKernel
     );
 
+    # Kernel packages for RK3588 boards (Orange Pi 5 Ultra, etc.)
+    # Based on linuxPackages_latest with VEPU580 encoder and HDMI-RX patches
+    linuxPackagesRK3588 = forAllSystems (system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+      in
+      import ./boot/kernels/orangepi5ultra/kernel.nix { inherit pkgs; lib = nixpkgs.lib; }
+    );
+
     # Cross-compiled kernel packages (x86_64 → aarch64) for *-cross variants.
     # Built on x86_64, outputs aarch64 kernel. Only the kernel is cross-compiled;
     # all other packages remain native aarch64 (pulled from cache or QEMU).
@@ -124,22 +133,34 @@
       crossPkgs.linuxPackagesFor patchedKernel
     );
 
+    # Shared kernel module used by most boards
+    mkKernelModule = board: { pkgs, lib, ... }: {
+      nixpkgs.overlays = [ self.overlays.default ];
+      nixpkgs.hostPlatform = board.hostPlatform;
+      nixpkgs.config.allowUnsupportedSystem = true;
+      boot.kernelPackages = lib.mkForce self.linuxPackages.${pkgs.stdenv.hostPlatform.system};
+    };
+
     # Barebones board modules (no users/network)
-    bootModules = nixpkgs.lib.mapAttrs
+    bootModules = (nixpkgs.lib.mapAttrs
       (name: board: [
         board.bootOnlyFile
-        ({ pkgs, lib, ... }: {
-          nixpkgs.overlays = [ self.overlays.default ];
-          nixpkgs.hostPlatform = board.hostPlatform;
-          nixpkgs.config.allowUnsupportedSystem = true;
-          # Use nixos-on-arm's patched kernel automatically
-          boot.kernelPackages = lib.mkForce self.linuxPackages.${pkgs.stdenv.hostPlatform.system};
-        })
+        (mkKernelModule board)
       ])
-      boards;
+      boards) // {
+        orangepi5ultra = [
+          boards.orangepi5ultra.bootOnlyFile
+          ({ pkgs, lib, ... }: {
+            nixpkgs.overlays = [ self.overlays.default ];
+            nixpkgs.hostPlatform = boards.orangepi5ultra.hostPlatform;
+            nixpkgs.config.allowUnsupportedSystem = true;
+            boot.kernelPackages = lib.mkForce self.linuxPackagesRK3588.${pkgs.stdenv.hostPlatform.system};
+          })
+        ];
+      };
 
     # Same for demo modules
-    demoModules = nixpkgs.lib.mapAttrs
+    demoModules = (nixpkgs.lib.mapAttrs
       (name: board: [
         board.demoFile
         ({ pkgs, lib, ... }: {
@@ -150,7 +171,18 @@
           boot.kernelPackages = lib.mkDefault self.linuxPackages.${pkgs.stdenv.hostPlatform.system};
         })
       ])
-      boards;
+      boards) // {
+        orangepi5ultra = [
+          boards.orangepi5ultra.demoFile
+          ({ pkgs, lib, ... }: {
+            nixpkgs.overlays = [ self.overlays.default ];
+            nixpkgs.hostPlatform = boards.orangepi5ultra.hostPlatform;
+            nixpkgs.config.allowUnsupportedSystem = true;
+            nixpkgs.config.allowUnfree = true;
+            boot.kernelPackages = lib.mkDefault self.linuxPackagesRK3588.${pkgs.stdenv.hostPlatform.system};
+          })
+        ];
+      };
 
     # Full nixosConfigurations (boot + demo variants)
     nixosConfigurations =
