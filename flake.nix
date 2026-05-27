@@ -67,6 +67,14 @@
         ];
       };
 
+    # Shared kernel module used by most boards
+    mkKernelModule = board: { pkgs, lib, ... }: {
+      nixpkgs.overlays = [ self.overlays.default ];
+      nixpkgs.hostPlatform = board.hostPlatform;
+      nixpkgs.config.allowUnsupportedSystem = true;
+      boot.kernelPackages = lib.mkForce self.linuxPackages.${pkgs.stdenv.hostPlatform.system};
+    };
+
     mkBoardConfigurations = board: {
       "${board}-demo" =
         mkBoardConfiguration board boards.${board}.hostPlatform
@@ -132,14 +140,6 @@
       in
       crossPkgs.linuxPackagesFor patchedKernel
     );
-
-    # Shared kernel module used by most boards
-    mkKernelModule = board: { pkgs, lib, ... }: {
-      nixpkgs.overlays = [ self.overlays.default ];
-      nixpkgs.hostPlatform = board.hostPlatform;
-      nixpkgs.config.allowUnsupportedSystem = true;
-      boot.kernelPackages = lib.mkForce self.linuxPackages.${pkgs.stdenv.hostPlatform.system};
-    };
 
     # Barebones board modules (no users/network)
     bootModules = (nixpkgs.lib.mapAttrs
