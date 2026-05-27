@@ -211,6 +211,10 @@
           (mkBoardConfiguration board system (modules ++ [({ pkgs, lib, ... }: {
             boot.kernelPackages = lib.mkOverride 40 self.linuxPackagesCross.x86_64-linux;
           })])).config.system.build.rockchipImages;
+        mkCrossImgRK3588 = board: modules:
+          (mkBoardConfiguration board system (modules ++ [({ pkgs, lib, ... }: {
+            boot.kernelPackages = lib.mkOverride 40 self.linuxPackagesRK3588Cross.x86_64-linux;
+          })])).config.system.build.rockchipImages;
       in {
         # --- E52C ---
         e52c = mkImg "e52c" self.demoModules.e52c;   # alias → demo
@@ -230,8 +234,8 @@
         orangepi5ultra = mkImg "orangepi5ultra" self.demoModules.orangepi5ultra; # alias → demo
         orangepi5ultra-demo = mkImg "orangepi5ultra" self.demoModules.orangepi5ultra;
         orangepi5ultra-boot = mkImg "orangepi5ultra" self.bootModules.orangepi5ultra;
-        orangepi5ultra-demo-cross = mkCrossImg "orangepi5ultra" self.demoModules.orangepi5ultra;
-        orangepi5ultra-boot-cross = mkCrossImg "orangepi5ultra" self.bootModules.orangepi5ultra;
+        orangepi5ultra-demo-cross = mkCrossImgRK3588 "orangepi5ultra" self.demoModules.orangepi5ultra;
+        orangepi5ultra-boot-cross = mkCrossImgRK3588 "orangepi5ultra" self.bootModules.orangepi5ultra;
 
         # --- NanoPi R6S ---
         nanopir6s = mkImg "nanopir6s" self.demoModules.nanopir6s; # alias → demo
