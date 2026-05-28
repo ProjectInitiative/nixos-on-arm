@@ -4,6 +4,7 @@
 {
   imports = [ 
     ../modules/rockchip-image.nix 
+    ../modules/rknpu.nix
   ];
   
   # Essential kernel modules for Rock 5A hardware
