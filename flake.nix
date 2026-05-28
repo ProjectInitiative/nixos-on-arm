@@ -151,6 +151,22 @@
       import ./boot/kernels/orangepi5ultra/kernel.nix { pkgs = crossPkgs; lib = nixpkgs.lib; }
     );
 
+    # Cross-compiled testing kernel (x86_64 → aarch64) for bleeding edge testing.
+    # Uses linuxPackages_testing (e.g. 7.0-rc4) with stock defconfig.
+    linuxPackagesTestingCross = forAllSystems (system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+        crossPkgs = pkgs.pkgsCross.aarch64-multiplatform;
+        patchedKernel = crossPkgs.linuxPackages_testing.kernel.override {
+          extraConfig = ''
+            FW_LOADER_COMPRESS y
+            FW_LOADER_COMPRESS_ZSTD y
+          '';
+        };
+      in
+      crossPkgs.linuxPackagesFor patchedKernel
+    );
+
     # Barebones board modules (no users/network)
     bootModules = (nixpkgs.lib.mapAttrs
       (name: board: [
