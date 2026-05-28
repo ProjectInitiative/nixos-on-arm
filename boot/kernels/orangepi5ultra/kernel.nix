@@ -54,33 +54,11 @@ let
       }
     ];
     structuredExtraConfig = with lib.kernel; {
-      # SoC
-      ARCH_ROCKCHIP = yes;
-      ROCKCHIP_PM_DOMAINS = yes;
-      ROCKCHIP_IOMMU = yes;
-      ROCKCHIP_IODOMAIN = yes;
-
-      # PCIe (NVMe SSD)
-      PCIE_ROCKCHIP_HOST = module;
-
-      # Display / DRM
-      DRM_ROCKCHIP = module;
-      ROCKCHIP_ANALOGIX_DP = yes;
-      ROCKCHIP_CDN_DP = yes;
-      ROCKCHIP_DW_HDMI = yes;
-      ROCKCHIP_DW_MIPI_DSI = yes;
-      ROCKCHIP_INNO_HDMI = yes;
-      ROCKCHIP_LVDS = yes;
-      PWM_ROCKCHIP = yes;
-
-      # GPU (Mali-G610 on RK3588)
-      DRM_PANTHOR = module;
-
-      # NPU (Rocket driver for Rockchip RK3588)
+      # NPU (Rocket driver)
       DRM_ACCEL = yes;
       DRM_ACCEL_ROCKET = module;
 
-      # Video encode/decode
+      # Video encoder (VEPU580) and decoder
       VIDEO_ROCKCHIP_RKVENC = yes;
       VIDEO_ROCKCHIP_VDEC = yes;
       VIDEO_HANTRO = yes;
@@ -90,26 +68,8 @@ let
       MEDIA_CONTROLLER_REQUEST_API = yes;
       VIDEO_MEM2MEM_DECODE_CONFIG = yes;
 
-      # mmc / storage
-      MMC_DW_ROCKCHIP = yes;
+      # Misc Rockchip
       MMC_SDHCI_ROCKCHIP = yes;
-
-      # PHYs
-      PHY_ROCKCHIP_EMMC = yes;
-      PHY_ROCKCHIP_INNO_HDMI = module;
-      PHY_ROCKCHIP_INNO_USB2 = yes;
-      PHY_ROCKCHIP_TYPEC = yes;
-      ROCKCHIP_PHY = yes;
-
-      # Thermal
-      ROCKCHIP_THERMAL = module;
-
-      # SPI
-      SPI_ROCKCHIP = yes;
-
-      # Audio
-      SND_SOC_ROCKCHIP = module;
-      SND_SOC_ROCKCHIP_SPDIF = module;
     };
     ignoreConfigErrors = true;
   };
