@@ -15,3 +15,4 @@ runtime/
 prompt.txt
 .aider*
 
+vendor/
