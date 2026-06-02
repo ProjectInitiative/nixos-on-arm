@@ -84,17 +84,19 @@
       );
     };
 
-    # Cross-compile kernel module — selects RK3588 cross kernel for rk3588 boards.
-    # Cross-compilation is always x86_64 → aarch64; the cross package is keyed by
-    # the BUILD platform (x86_64-linux), not the host platform.
+    # Cross-compile kernel module — selects the appropriate cross/native kernel
+    # based on the BUILD platform (not nixpkgs.hostPlatform, which is aarch64).
+    # On x86_64: uses pre-built cross-compiled kernel (fast, cached).
+    # On aarch64: uses effectively native kernel (no emulation needed).
     mkCrossKernelModule = board: { pkgs, lib, ... }: {
       nixpkgs.overlays = [ self.overlays.default ];
       nixpkgs.hostPlatform = board.hostPlatform;
       nixpkgs.config.allowUnsupportedSystem = true;
       boot.kernelPackages = lib.mkOverride 40 (
+        let buildSystem = pkgs.stdenv.buildPlatform.system; in
         if board ? rk3588
-        then self.linuxPackagesRK3588Cross.x86_64-linux
-        else self.linuxPackagesCross.x86_64-linux
+        then self.linuxPackagesRK3588Cross.${buildSystem}
+        else self.linuxPackagesCross.${buildSystem}
       );
     };
 
