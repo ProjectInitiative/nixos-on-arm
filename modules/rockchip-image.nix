@@ -23,6 +23,7 @@ in
       image = {
         name = mkOption { type = types.str; default = "nixos-rockchip"; };
         imagePaddingMB = mkOption { type = types.int; default = 100; };
+        rootfsExtraSpaceMB = mkOption { type = types.int; default = 0; description = "Extra free space (in MB) to add to the root filesystem image."; };
         bootPartitionSize = mkOption { type = types.str; default = "1G"; };
         fullImageBootOffsetMB = mkOption { type = types.int; default = 16; };
         osImageBootOffsetMB = mkOption { type = types.int; default = 1; };
@@ -91,11 +92,22 @@ in
       storePaths = [ ];
     };
     
-    system.build.nixosRootfsPartitionImage = assemblerPkgs.callPackage "${pkgs.path}/nixos/lib/make-ext4-fs.nix" {
-      storePaths = [ config.system.build.toplevel ];
-      volumeLabel = "NIXOS_ROOT";
-      compressImage = false;
-    };
+    system.build.nixosRootfsPartitionImage = let
+      baseImage = assemblerPkgs.callPackage "${pkgs.path}/nixos/lib/make-ext4-fs.nix" {
+        storePaths = [ config.system.build.toplevel ];
+        volumeLabel = "NIXOS_ROOT";
+        compressImage = false;
+      };
+      extraMB = cfg.image.rootfsExtraSpaceMB;
+    in if extraMB > 0 then
+      assemblerPkgs.runCommand "ext4-fs.img" { nativeBuildInputs = [ assemblerPkgs.e2fsprogs ]; } ''
+        cp ${baseImage} $out
+        chmod +w $out
+        truncate -s +${toString extraMB}M $out
+        e2fsck -fy $out
+        resize2fs $out
+      ''
+    else baseImage;
     
     # C. Assemble the final image
     # FIX: Use assemblerPkgs to ensure image assembly runs on the host

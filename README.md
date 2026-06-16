@@ -51,6 +51,8 @@ Currently supports the Radxa E52C (RK3582) and Radxa Rock 5A (RK3588S), with a m
 | ------------- | ------- | -------------- | ----------- |
 | Radxa E52C    | RK3582  | `demo`, `boot` | ✅ Supported |
 | Radxa Rock 5A | RK3588S | `demo`, `boot` | ✅ Supported |
+| NanoPi R6S    | RK3588S | `demo`, `boot` | ✅ Supported |
+| NanoPi R5S    | RK3568  | `demo`, `boot` | ✅ Supported |
 | Radxa E25     | RK3568  | TBD            | 🚧 Planned  |
 | Radxa Rock 5B | RK3588  | TBD            | 🚧 Planned  |
 

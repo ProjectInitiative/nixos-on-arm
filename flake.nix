@@ -42,6 +42,12 @@
         description = "FriendlyElec NanoPi R6S (RK3588S)";
         rk3588 = true;
       };
+      nanopir5s = {
+        hostPlatform = "aarch64-linux";
+        bootOnlyFile = ./boot/nanopi-r5s-boot.nix;
+        demoFile = ./demo/nanopi-r5s-demo.nix;
+        description = "FriendlyElec NanoPi R5S (RK3568)";
+      };
       renegade = {
         hostPlatform = "aarch64-linux";
         bootOnlyFile = ./boot/renegade-boot.nix;
@@ -235,6 +241,7 @@
       (mkBoardConfigurations "rock5a") //
       (mkBoardConfigurations "orangepi5ultra") //
       (mkBoardConfigurations "nanopir6s") //
+      (mkBoardConfigurations "nanopir5s") //
       (mkBoardConfigurations "renegade");
 
     # System-specific packages organized by board
@@ -271,6 +278,11 @@
         nanopir6s-demo-cross = mkImg "nanopir6s" self.demoModulesCross.nanopir6s;
         nanopir6s-boot-cross = mkImg "nanopir6s" self.bootModulesCross.nanopir6s;
 
+        # --- NanoPi R5S ---
+        nanopir5s = mkImg "nanopir5s" self.demoModules.nanopir5s; # alias → demo
+        nanopir5s-demo = mkImg "nanopir5s" self.demoModules.nanopir5s;
+        nanopir5s-boot = mkImg "nanopir5s" self.bootModules.nanopir5s;
+
         # --- ROC-RK3328-CC Renegade ---
         renegade = mkImg "renegade" self.demoModules.renegade;
         renegade-demo = mkImg "renegade" self.demoModules.renegade;
@@ -303,6 +315,7 @@
           echo "  rock5a-{boot,demo}-cross"
           echo "  orangepi5ultra-{boot,demo}-cross"
           echo "  nanopir6s-{boot,demo}-cross"
+          echo "  nanopir5s-{boot,demo}-cross"
           echo "  renegade-{boot,demo}-cross"
         '';
       };
