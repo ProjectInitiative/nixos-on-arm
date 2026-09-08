@@ -4,6 +4,13 @@
 # upstream yet, so this builds the stock nixpkgs kernel (same base as the
 # shared `linuxPackages` flake output) and injects the board DTS from
 # ./rk3528-nanopi-neo3-plus.dts into the kernel source tree.
+#
+# USB support: RK3528 USB (USB2PHY + DWC3/EHCI/OHCI nodes) has not landed
+# upstream as of 6.18/7.0, so the Armbian rockchip64-6.18 rk3528 USB
+# patches are applied (based on Jonas Karlman's mainlining work):
+#   - phy: inno-usb2 RK3528 support (+ standalone PHY regmap split)
+#   - rk3528.dtsi USB controller/PHY node definitions
+#   - OTG delayed-work cleanup fix
 { pkgs, lib ? pkgs.lib }:
 
 let
@@ -29,5 +36,22 @@ let
       fi
     '';
   });
+
+  customKernelPatched = customKernel.override {
+    kernelPatches = (baseKernel.kernelPatches or [ ]) ++ [
+      {
+        name = "rk3528-phy-inno-usb2";
+        patch = ./patches/rk3528-10-phy-rockchip-inno-usb2-Add-support-for-RK3528.patch;
+      }
+      {
+        name = "rk3528-dtsi-usb-nodes";
+        patch = ./patches/rk3528-11-arm64-dts-rockchip-rk3528-Add-USB-controller-and-PHY-nodes.patch;
+      }
+      {
+        name = "rk3528-phy-inno-usb2-otg-cleanup";
+        patch = ./patches/rk3528-13-phy-rockchip-inno-usb2-fix-otg-timer-cleanup.patch;
+      }
+    ];
+  };
 in
-  pkgs.linuxPackagesFor customKernel
+  pkgs.linuxPackagesFor customKernelPatched

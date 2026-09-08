@@ -63,7 +63,7 @@ Currently supports the Radxa E52C (RK3582), Radxa Rock 5A (RK3588S), FriendlyEle
 | Orange Pi 5 Ultra | RK3588  | `demo`, `boot` | ✅ Supported |
 | NanoPi R6S    | RK3588S | `demo`, `boot` | ✅ Supported |
 | ROC-RK3328-CC Renegade | RK3328 | `demo`, `boot` | ✅ Supported |
-| NanoPi NEO3 Plus | RK3528A | `demo`, `boot` | ✅ Supported (⚠️ USB not yet functional — mainline RK3528 USB is WIP) |
+| NanoPi NEO3 Plus | RK3528A | `demo`, `boot` | ✅ Supported (USB via Armbian RK3528 backports — mainline USB still WIP) |
 | Radxa E25     | RK3568  | TBD            | 🚧 Planned  |
 | Radxa Rock 5B | RK3588  | TBD            | 🚧 Planned  |
 

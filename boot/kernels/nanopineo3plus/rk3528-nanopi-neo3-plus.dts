@@ -10,14 +10,18 @@
  * Board specifics taken from the vendor rk3528-nanopi-rev02.dts: the K1
  * user button (GPIO4_B2) and the PWM4-driven fan connector.
  *
- * NOTE: mainline (as of 6.18) has no USB controller nodes in rk3528.dtsi
- * yet, so the USB3 Type-A and USB2 Type-C ports are not functional here.
+ * NOTE: RK3528 USB support (USB2PHY/DWC3/EHCI/OHCI) is not yet upstream;
+ * the Armbian rockchip64-6.18 rk3528 USB patches (based on Jonas Karlman's
+ * mainlining work) are applied via ../patches/ so the USB-A 3.0 port and
+ * the USB2 host pair work. The Type-C port is wired to the same USB2 PHY
+ * OTG pair and is not independently usable in host mode.
  */
 
 /dts-v1/;
 
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/leds/common.h>
+#include <dt-bindings/phy/phy.h>
 #include <dt-bindings/pwm/pwm.h>
 #include "rk3528.dtsi"
 
@@ -140,6 +144,19 @@
 		vin-supply = <&vcc_3v3>;
 	};
 
+	/* USB host VBUS (USB-A port, switched by USB_HOST_PWREN) */
+	vcc5v0_host: regulator-5v0-vcc-host {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio4 RK_PB5 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&usb20_host1_pwren>;
+		regulator-name = "vcc5v0_host";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		vin-supply = <&vcc5v0_sys>;
+	};
+
 	vcc5v0_sys: regulator-5v0-vcc-sys {
 		compatible = "regulator-fixed";
 		regulator-name = "vcc5v0_sys";
@@ -210,6 +227,10 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&rgmii_miim>, <&rgmii_tx_bus2>, <&rgmii_rx_bus2>,
 		    <&rgmii_rgmii_clk>, <&rgmii_rgmii_bus>;
+	/* PHY reset via the GMAC driver: the generic PHY framework does not
+	 * handle the per-PHY reset-gpios (same fix as Armbian rk3528-14) */
+	snps,reset-gpio = <&gpio4 RK_PC2 GPIO_ACTIVE_LOW>;
+	snps,reset-delays-us = <0 20000 100000>;
 	status = "okay";
 };
 
@@ -239,21 +260,10 @@
 	rgmii_phy: ethernet-phy@1 {
 		compatible = "ethernet-phy-ieee802.3-c22";
 		reg = <0x1>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&gmac1_rstn_l>;
-		reset-assert-us = <20000>;
-		reset-deassert-us = <100000>;
-		reset-gpios = <&gpio4 RK_PC2 GPIO_ACTIVE_LOW>;
 	};
 };
 
 &pinctrl {
-	ethernet {
-		gmac1_rstn_l: gmac1-rstn-l {
-			rockchip,pins = <4 RK_PC2 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-	};
-
 	gpio-keys {
 		key1_pin: key1-pin {
 			rockchip,pins = <4 RK_PB2 RK_FUNC_GPIO &pcfg_pull_up>;
@@ -283,6 +293,12 @@
 
 		sdmmc_pwren_l: sdmmc-pwren-l {
 			rockchip,pins = <4 RK_PA1 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	usb {
+		usb20_host1_pwren: usb20-host1-pwren {
+			rockchip,pins = <4 RK_PB5 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 };
@@ -334,5 +350,48 @@
 &uart0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&uart0m0_xfer>;
+	status = "okay";
+};
+
+/*
+ * USB: USB-A port on the DWC3 (USB3 SS via the naneng combo PHY, HS via
+ * the USB2PHY otg port — same wiring as the Radxa ROCK 2A) and VBUS
+ * switched by vcc5v0_host. The USB2 host pair (EHCI/OHCI) is enabled as
+ * a fallback for USB2 enumeration. The Type-C port shares the USB2 PHY
+ * OTG pair and is not independently usable with dr_mode = "host".
+ */
+
+&combphy {
+	status = "okay";
+};
+
+&u2phy {
+	status = "okay";
+};
+
+&u2phy_host {
+	phy-supply = <&vcc5v0_host>;
+	status = "okay";
+};
+
+&u2phy_otg {
+	phy-supply = <&vcc5v0_host>;
+	status = "okay";
+};
+
+&usb_host0_ehci {
+	status = "okay";
+};
+
+&usb_host0_ohci {
+	status = "okay";
+};
+
+&usb_host0_xhci {
+	dr_mode = "host";
+	extcon = <&u2phy>;
+	phys = <&u2phy_otg>, <&combphy PHY_TYPE_USB3>;
+	phy-names = "usb2-phy", "usb3-phy";
+	snps,dis_u2_susphy_quirk;
 	status = "okay";
 };
