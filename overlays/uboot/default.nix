@@ -80,4 +80,31 @@ final: prev: {
     ];
   };
 
+  # NanoPi NEO3 Plus is RK3528A. Upstream U-Boot (2026.04, the nixpkgs
+  # default) ships generic-rk3528_defconfig, whose board DT matches the
+  # NEO3 Plus debug UART (UART0_M0 @ 1500000n8) and enables eMMC + SD.
+  # BL31/TPL are vendor blobs from rockchip-linux/rkbin (no mainline TF-A
+  # for RK3528 yet). nixpkgs' rkbin passthru has no RK3528 attributes, so
+  # the blob paths are referenced directly.
+  # NOTE: blobs must be passed via extraMakeFlags (command-line make vars).
+  # Passing them as derivation env attrs (BL31/ROCKCHIP_TPL) is unreliable:
+  # binman then sees empty -a paths (env vars are not always imported as
+  # make variables inside the sandboxed build).
+  ubootNanopiNeo3Plus = prev.buildUBoot {
+    defconfig = "generic-rk3528_defconfig";
+    extraMeta.platforms = [ "aarch64-linux" ];
+    extraMakeFlags = [
+      "BL31=${prev.rkbin}/bin/rk35/rk3528_bl31_v1.20.elf"
+      "ROCKCHIP_TPL=${prev.rkbin}/bin/rk35/rk3528_ddr_1056MHz_v1.11.bin"
+    ];
+    filesToInstall = [
+      "u-boot.itb"
+      "idbloader.img"
+      "u-boot-rockchip.bin"
+    ];
+    extraMeta = {
+      description = "U-Boot (generic RK3528) for FriendlyElec NanoPi NEO3 Plus";
+    };
+  };
+
 }

@@ -1,21 +1,30 @@
 # NixOS Rockchip ARM Board Image Builder
 
 This project creates NixOS disk images for Rockchip ARM-based boards with proper U-Boot integration, cross-compilation support, and **multiple image variants (boot-only, demo, etc.)**.
-Currently supports the Radxa E52C (RK3582) and Radxa Rock 5A (RK3588S), with a modular design for easy addition of new boards.
+Currently supports the Radxa E52C (RK3582), Radxa Rock 5A (RK3588S), FriendlyElec NanoPi R6S (RK3588S), ROC-RK3328-CC Renegade (RK3328) and FriendlyElec NanoPi NEO3 Plus (RK3528A), with a modular design for easy addition of new boards.
 
 ## File Structure
 
 ```
 .
 ├── flake.nix                       # Nix flake with board + variant outputs
-├── e52c-configuration.nix          # E52C board configuration
-├── rock5a-configuration.nix        # Rock 5A board configuration
+├── boot/                           # Minimal bootable board configs
+│   ├── e52c-boot.nix               # Radxa E52C (RK3582)
+│   ├── rock5a-boot.nix             # Radxa Rock 5A (RK3588S)
+│   ├── orange-pi-5-ultra-boot.nix  # Orange Pi 5 Ultra (RK3588)
+│   ├── nanopi-r6s-boot.nix         # NanoPi R6S (RK3588S)
+│   ├── renegade-boot.nix           # ROC-RK3328-CC (RK3328)
+│   ├── nanopi-neo3-plus-boot.nix   # NanoPi NEO3 Plus (RK3528A)
+│   └── kernels/                    # Board-specific kernel packages
+│       ├── orangepi5ultra/         #   RK3588 kernel + VEPU580/HDMI-RX patches
+│       └── nanopineo3plus/         #   RK3528 kernel + board DTS
+├── demo/                           # Demo configs (users, network, tools)
 ├── modules/
 │   ├── rockchip-image.nix          # Rockchip support module
 │   ├── assemble-monolithic-image.nix # Image assembly function
 │   └── make-fat-fs.nix             # FAT32 filesystem builder
 ├── overlays/
-│   └── uboot/                      # U-Boot patches and overlay
+│   └── uboot/                      # U-Boot patches and board additions
 └── README.md                       # This file
 ```
 
@@ -51,6 +60,10 @@ Currently supports the Radxa E52C (RK3582) and Radxa Rock 5A (RK3588S), with a m
 | ------------- | ------- | -------------- | ----------- |
 | Radxa E52C    | RK3582  | `demo`, `boot` | ✅ Supported |
 | Radxa Rock 5A | RK3588S | `demo`, `boot` | ✅ Supported |
+| Orange Pi 5 Ultra | RK3588  | `demo`, `boot` | ✅ Supported |
+| NanoPi R6S    | RK3588S | `demo`, `boot` | ✅ Supported |
+| ROC-RK3328-CC Renegade | RK3328 | `demo`, `boot` | ✅ Supported |
+| NanoPi NEO3 Plus | RK3528A | `demo`, `boot` | ✅ Supported (⚠️ USB not yet functional — mainline RK3528 USB is WIP) |
 | Radxa E25     | RK3568  | TBD            | 🚧 Planned  |
 | Radxa Rock 5B | RK3588  | TBD            | 🚧 Planned  |
 
@@ -72,6 +85,11 @@ nix build .#e52c-boot   # minimal boot-only image
 nix build .#rock5a
 nix build .#rock5a-demo
 nix build .#rock5a-boot
+
+# Build NanoPi NEO3 Plus (RK3528A):
+nix build .#nanopineo3plus
+nix build .#nanopineo3plus-boot
+nix build .#nanopineo3plus-boot-cross   # cross-compiled, fastest on x86_64
 ```
 
 ### Available Build Targets

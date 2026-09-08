@@ -48,6 +48,13 @@
         demoFile = ./demo/renegade-demo.nix;
         description = "ROC-RK3328-CC Renegade (RK3328)";
       };
+      nanopineo3plus = {
+        hostPlatform = "aarch64-linux";
+        bootOnlyFile = ./boot/nanopi-neo3-plus-boot.nix;
+        demoFile = ./demo/nanopi-neo3-plus-demo.nix;
+        description = "FriendlyElec NanoPi NEO3 Plus (RK3528A)";
+        rk3528 = true;
+      };
     };
 
     # Function to create nixosConfiguration
@@ -80,6 +87,8 @@
       boot.kernelPackages = lib.mkForce (
         if board ? rk3588
         then self.linuxPackagesRK3588.${pkgs.stdenv.hostPlatform.system}
+        else if board ? rk3528
+        then self.linuxPackagesRK3528.${pkgs.stdenv.hostPlatform.system}
         else self.linuxPackages.${pkgs.stdenv.hostPlatform.system}
       );
     };
@@ -95,6 +104,8 @@
       boot.kernelPackages = lib.mkOverride 40 (
         if board ? rk3588
         then self.linuxPackagesRK3588Cross.x86_64-linux
+        else if board ? rk3528
+        then self.linuxPackagesRK3528Cross.x86_64-linux
         else self.linuxPackagesCross.x86_64-linux
       );
     };
@@ -144,6 +155,15 @@
       import ./boot/kernels/orangepi5ultra/kernel.nix { inherit pkgs; lib = nixpkgs.lib; }
     );
 
+    # Kernel packages for RK3528 boards (NanoPi NEO3 Plus, etc.)
+    # Mainline kernel + board DTS (no RK3528 board DTS upstream yet)
+    linuxPackagesRK3528 = forAllSystems (system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+      in
+      import ./boot/kernels/nanopineo3plus/kernel.nix { inherit pkgs; lib = nixpkgs.lib; }
+    );
+
     # Cross-compiled kernel packages (x86_64 → aarch64) for *-cross variants.
     # Built on x86_64, outputs aarch64 kernel. Only the kernel is cross-compiled;
     # all other packages remain native aarch64 (pulled from cache or QEMU).
@@ -159,6 +179,16 @@
         };
       in
       crossPkgs.linuxPackagesFor patchedKernel
+    );
+
+    # Cross-compiled RK3528 kernel (x86_64 → aarch64) with the NanoPi NEO3 Plus
+    # board DTS. For NanoPi NEO3 Plus and similar RK3528 boards.
+    linuxPackagesRK3528Cross = forAllSystems (system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+        crossPkgs = pkgs.pkgsCross.aarch64-multiplatform;
+      in
+      import ./boot/kernels/nanopineo3plus/kernel.nix { pkgs = crossPkgs; lib = nixpkgs.lib; }
     );
 
     # Cross-compiled RK3588 kernel (x86_64 → aarch64) with VEPU580/HDMI-RX patches.
@@ -207,6 +237,8 @@
           boot.kernelPackages = lib.mkDefault (
             if board ? rk3588
             then self.linuxPackagesRK3588.${pkgs.stdenv.hostPlatform.system}
+            else if board ? rk3528
+            then self.linuxPackagesRK3528.${pkgs.stdenv.hostPlatform.system}
             else self.linuxPackages.${pkgs.stdenv.hostPlatform.system}
           );
         })
@@ -235,7 +267,8 @@
       (mkBoardConfigurations "rock5a") //
       (mkBoardConfigurations "orangepi5ultra") //
       (mkBoardConfigurations "nanopir6s") //
-      (mkBoardConfigurations "renegade");
+      (mkBoardConfigurations "renegade") //
+      (mkBoardConfigurations "nanopineo3plus");
 
     # System-specific packages organized by board
     packages = forAllSystems (system:
@@ -277,6 +310,13 @@
         renegade-boot = mkImg "renegade" self.bootModules.renegade;
         renegade-demo-cross = mkImg "renegade" self.demoModulesCross.renegade;
         renegade-boot-cross = mkImg "renegade" self.bootModulesCross.renegade;
+
+        # --- FriendlyElec NanoPi NEO3 Plus ---
+        nanopineo3plus = mkImg "nanopineo3plus" self.demoModules.nanopineo3plus;
+        nanopineo3plus-demo = mkImg "nanopineo3plus" self.demoModules.nanopineo3plus;
+        nanopineo3plus-boot = mkImg "nanopineo3plus" self.bootModules.nanopineo3plus;
+        nanopineo3plus-demo-cross = mkImg "nanopineo3plus" self.demoModulesCross.nanopineo3plus;
+        nanopineo3plus-boot-cross = mkImg "nanopineo3plus" self.bootModulesCross.nanopineo3plus;
       }
     );
 
@@ -297,6 +337,7 @@
           echo "  orangepi5ultra-{boot,demo}"
           echo "  nanopir6s-{boot,demo}"
           echo "  renegade-{boot,demo}"
+          echo "  nanopineo3plus-{boot,demo}"
           echo ""
           echo "Cross-compiled builds (fast, x86_64 → aarch64) — nix build .#<board>-<variant>-cross:"
           echo "  e52c-{boot,demo}-cross   # ~1h"
@@ -304,6 +345,7 @@
           echo "  orangepi5ultra-{boot,demo}-cross"
           echo "  nanopir6s-{boot,demo}-cross"
           echo "  renegade-{boot,demo}-cross"
+          echo "  nanopineo3plus-{boot,demo}-cross"
         '';
       };
     });
