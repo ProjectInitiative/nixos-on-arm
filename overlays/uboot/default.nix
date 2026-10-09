@@ -1,17 +1,18 @@
 final: prev: {
+  # U-Boot >= 2026.07 mainlined RK3582 support (rk3588.c ft_system_setup +
+  # CONFIG_OF_SYSTEM_SETUP in generic-rk3588_defconfig), so our local patches
+  # 0001/0002 are now redundant and fail to apply. Kept in patches/ for
+  # reference until the pin moves past 2026.07.
   uboot-rk3582-generic = prev.buildUBoot {
     pname = "uboot-rk3582-generic";
     defconfig = "generic-rk3588_defconfig";
-    
-    extraPatches = [
-      ./patches/0001-rockchip-Add-initial-RK3582-support.patch
-      ./patches/0002-rockchip-rk3588-generic-Enable-support-for-RK3582.patch
-    ];
 
     extraMeta.platforms = [ "aarch64-linux" ];
-    BL31 = "${prev.armTrustedFirmwareRK3588}/bl31.elf";
-    ROCKCHIP_TPL = prev.rkbin.TPL_RK3588;
-    
+    # 2026.07 binman ignores env-attr blobs; pass as make vars (see NEO3 Plus note).
+    extraMakeFlags = [
+      "BL31=${prev.armTrustedFirmwareRK3588}/bl31.elf"
+      "ROCKCHIP_TPL=${prev.rkbin.TPL_RK3588}"
+    ];
     filesToInstall = [
       "u-boot.itb"
       "idbloader.img"
@@ -26,8 +27,10 @@ final: prev: {
   ubootRock5ModelA = prev.buildUBoot {
     defconfig = "rock5a-rk3588s_defconfig";
     extraMeta.platforms = [ "aarch64-linux" ];
-    BL31 = "${prev.armTrustedFirmwareRK3588}/bl31.elf";
-    ROCKCHIP_TPL = prev.rkbin.TPL_RK3588;
+    extraMakeFlags = [
+      "BL31=${prev.armTrustedFirmwareRK3588}/bl31.elf"
+      "ROCKCHIP_TPL=${prev.rkbin.TPL_RK3588}"
+    ];
     filesToInstall = [
       "u-boot.itb"
       "idbloader.img"
@@ -60,8 +63,10 @@ final: prev: {
   ubootNanopiR6S = prev.buildUBoot {
     defconfig = "nanopi-r6s-rk3588s_defconfig";
     extraMeta.platforms = [ "aarch64-linux" ];
-    BL31 = "${prev.armTrustedFirmwareRK3588}/bl31.elf";
-    ROCKCHIP_TPL = prev.rkbin.TPL_RK3588;
+    extraMakeFlags = [
+      "BL31=${prev.armTrustedFirmwareRK3588}/bl31.elf"
+      "ROCKCHIP_TPL=${prev.rkbin.TPL_RK3588}"
+    ];
     filesToInstall = [
       "u-boot.itb"
       "idbloader.img"
@@ -72,7 +77,9 @@ final: prev: {
   ubootRenegade = prev.buildUBoot {
     defconfig = "roc-cc-rk3328_defconfig";
     extraMeta.platforms = [ "aarch64-linux" ];
-    BL31 = "${prev.armTrustedFirmwareRK3328}/bl31.elf";
+    extraMakeFlags = [
+      "BL31=${prev.armTrustedFirmwareRK3328}/bl31.elf"
+    ];
     filesToInstall = [
       "u-boot.itb"
       "idbloader.img"
