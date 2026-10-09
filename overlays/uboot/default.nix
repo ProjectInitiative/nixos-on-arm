@@ -1,4 +1,14 @@
 final: prev: {
+  # rkbin renames blobs on every version bump (e.g. rk3528_ddr_1056MHz_v1.11
+  # -> v1.14, bl31 v1.20 -> v1.21), so resolve the newest matching blob
+  # dynamically instead of hardcoding versions.
+  rk3528Blob = pattern:
+    let
+      files = builtins.attrNames (builtins.readDir "${prev.rkbin}/bin/rk35");
+      matches = builtins.filter (n: builtins.match pattern n != null) files;
+    in
+      "${prev.rkbin}/bin/rk35/${builtins.head matches}";
+
   # U-Boot >= 2026.07 mainlined RK3582 support (rk3588.c ft_system_setup +
   # CONFIG_OF_SYSTEM_SETUP in generic-rk3588_defconfig), so our local patches
   # 0001/0002 are now redundant and fail to apply. Kept in patches/ for
@@ -101,8 +111,8 @@ final: prev: {
     defconfig = "generic-rk3528_defconfig";
     extraMeta.platforms = [ "aarch64-linux" ];
     extraMakeFlags = [
-      "BL31=${prev.rkbin}/bin/rk35/rk3528_bl31_v1.20.elf"
-      "ROCKCHIP_TPL=${prev.rkbin}/bin/rk35/rk3528_ddr_1056MHz_v1.11.bin"
+      "BL31=${final.rk3528Blob "rk3528_bl31_v.*\\.elf"}"
+      "ROCKCHIP_TPL=${final.rk3528Blob "rk3528_ddr_1056MHz_v.*\\.bin"}"
     ];
     filesToInstall = [
       "u-boot.itb"
