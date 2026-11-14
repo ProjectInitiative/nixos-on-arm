@@ -15,7 +15,7 @@ Untested for COM1 (debug UART, _STA=0 here) and DGX Spark. With this applied, dr
 
 --- a/drivers/tty/serial/8250/8250_mtk.c
 +++ b/drivers/tty/serial/8250/8250_mtk.c
-@@ static int mtk8250_probe(struct platform_device *pdev)
+@@ -240,3 +240,9 @@ static int mtk8250_probe(struct platform_device *pdev)
  	uart.port.uartclk = clk_get_rate(data->uart_clk);
 -	if (!uart.port.uartclk)
 -		uart.port.uartclk = 26 * HZ_PER_MHZ;
