@@ -73,7 +73,10 @@ stdenvNoCC.mkDerivation {
     # /usr/local/sbin/<svc>; the /usr/local/bin/<svc> pattern does not exist
     # in the upstream files, so it uses --replace-warn (silent no-op if
     # absent) instead of --replace-fail, which hard-fails the build.
-    for svc in n1x-edp-backlight n1x-sdw-settle n1x-touchpad-ptp surface-kbd-backlight; do
+    # n1x-touchpad-ptp has no upstream .service (it is driven by the udev rule
+    # + a oneshot unit defined in the NixOS module) — only install units that
+    # exist in the pinned gist set.
+    for svc in n1x-edp-backlight n1x-sdw-settle surface-kbd-backlight; do
       install -Dm644 $svc.service $out/lib/systemd/system/$svc.service
       substituteInPlace $out/lib/systemd/system/$svc.service \
         --replace-fail "/usr/local/sbin/$svc" "$out/bin/$svc" \

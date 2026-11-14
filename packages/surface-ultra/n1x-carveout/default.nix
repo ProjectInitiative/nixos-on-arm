@@ -34,8 +34,8 @@ stdenv.mkDerivation {
   # pahole must be on PATH for BTF generation of the .ko.
   preBuild = ''
     export NIX_STORE
-    ln -s ${sources.gist.n1xCarveoutMemmapC} n1x_carveout_memmap.c
-    ln -s ${sources.gist.n1xCarveoutMemmapMakefile} Makefile
+    ln -sf ${sources.gist.n1xCarveoutMemmapC} n1x_carveout_memmap.c
+    ln -sf ${sources.gist.n1xCarveoutMemmapMakefile} Makefile
   '';
 
   nativeBuildInputs = kernel.moduleBuildDependencies;

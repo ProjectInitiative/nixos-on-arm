@@ -31,7 +31,7 @@ stdenv.mkDerivation {
   # root, no subdir. NIX_STORE must be exported for the gcc wrapper.
   preBuild = ''
     export NIX_STORE
-    ln -s ${sources.gist.sdwPadDriveC} sdw_pad_drive.c
+    ln -sf ${sources.gist.sdwPadDriveC} sdw_pad_drive.c
     printf 'obj-m := sdw_pad_drive.o\n' > Makefile
   '';
 
