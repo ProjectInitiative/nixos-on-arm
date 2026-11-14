@@ -23,12 +23,13 @@ stdenv.mkDerivation {
   pname = "n1x-sdw-pads";
   version = "1.0";
 
-  src = sources.gist;
+  # Individual pinned gist files (fetchurl attrs), assembled into a tree.
+  src = null; # unpacked manually from $sources below
 
   dontUnpack = true;
   preBuild = ''
     mkdir -p source
-    cp $src/sdwPadDriveC source/sdw_pad_drive.c
+    ln -s ${sources.gist.sdwPadDriveC} source/sdw_pad_drive.c
     cd source
     printf 'obj-m := sdw_pad_drive.o\n' > Makefile
   '';

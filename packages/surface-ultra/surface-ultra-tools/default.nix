@@ -38,7 +38,7 @@ stdenvNoCC.mkDerivation {
   version = "unstable-2026-11-13";
 
   # Individual pinned gist files (fetchurl attrs) assembled into a tree.
-  src = sources.gist;
+  src = null; # unpackPhase wires the pinned fetchurl attrs directly
 
   nativeBuildInputs = [ makeWrapper ];
 
@@ -47,14 +47,14 @@ stdenvNoCC.mkDerivation {
   unpackPhase = ''
     runHook preUnpack
     mkdir -p source
-    ln -s $src/n1xTouchpadPtp source/n1x-touchpad-ptp
-    ln -s $src/kbdRepeatDelay source/kbd-repeat-delay
-    ln -s $src/n1xEdpBacklight source/n1x-edp-backlight
-    ln -s $src/n1xEdpBacklightService source/n1x-edp-backlight.service
-    ln -s $src/surfaceKbdBacklight source/surface-kbd-backlight
-    ln -s $src/surfaceKbdBacklightService source/surface-kbd-backlight.service
-    ln -s $src/n1xSdwSettle source/n1x-sdw-settle
-    ln -s $src/n1xSdwSettleService source/n1x-sdw-settle.service
+    ln -s ${sources.gist.n1xTouchpadPtp} source/n1x-touchpad-ptp
+    ln -s ${sources.gist.kbdRepeatDelay} source/kbd-repeat-delay
+    ln -s ${sources.gist.n1xEdpBacklight} source/n1x-edp-backlight
+    ln -s ${sources.gist.n1xEdpBacklightService} source/n1x-edp-backlight.service
+    ln -s ${sources.gist.surfaceKbdBacklight} source/surface-kbd-backlight
+    ln -s ${sources.gist.surfaceKbdBacklightService} source/surface-kbd-backlight.service
+    ln -s ${sources.gist.n1xSdwSettle} source/n1x-sdw-settle
+    ln -s ${sources.gist.n1xSdwSettleService} source/n1x-sdw-settle.service
     cd source
     runHook postUnpack
   '';

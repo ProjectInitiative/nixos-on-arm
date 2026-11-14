@@ -24,13 +24,14 @@ stdenv.mkDerivation {
   pname = "n1x-carveout-memmap";
   version = "1.0";
 
-  src = sources.gist;
+  # Individual pinned gist files (fetchurl attrs), assembled into a tree.
+  src = null; # unpacked manually from $sources below
 
   dontUnpack = true;
   preBuild = ''
     mkdir -p source
-    cp $src/n1xCarveoutMemmapC source/n1x_carveout_memmap.c
-    cp $src/n1xCarveoutMemmapMakefile source/Makefile
+    ln -s ${sources.gist.n1xCarveoutMemmapC} source/n1x_carveout_memmap.c
+    ln -s ${sources.gist.n1xCarveoutMemmapMakefile} source/Makefile
     cd source
   '';
 

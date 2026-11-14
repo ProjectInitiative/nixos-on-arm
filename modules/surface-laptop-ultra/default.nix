@@ -34,9 +34,6 @@
   config,
   lib,
   pkgs,
-  callPackage,
-  fetchurl,
-  fetchFromGitHub,
   ...
 }:
 with lib;
@@ -44,8 +41,7 @@ let
   cfg = config.hardware.surface-laptop-ultra;
 
   # Pinned sources + all packages, built against the configured kernel.
-  slu = callPackage ../../packages/surface-ultra {
-    inherit fetchurl fetchFromGitHub;
+  slu = pkgs.callPackage ../../packages/surface-ultra {
     kernel = cfg.kernelPackages.kernel;
     inherit (cfg) cameraFirmware ssamUartViaAggregator;
   };
