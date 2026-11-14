@@ -28,24 +28,33 @@ stdenv.mkDerivation {
 
   dontUnpack = true;
   # kbuild requires M=<dir with the module Makefile> — files live in the build
-  # root, no subdir. NIX_STORE must be exported for the gcc wrapper.
+  # root, symlinked BEFORE genericBuild (buildPhase descends into M=
+  # immediately). NIX_STORE is required by the gcc wrapper (set -eu); pahole
+  # comes via kernel.moduleBuildDependencies for BTF.
   preBuild = ''
-    export NIX_STORE
     ln -sf ${sources.gist.sdwPadDriveC} sdw_pad_drive.c
     printf 'obj-m := sdw_pad_drive.o\n' > Makefile
   '';
 
   nativeBuildInputs = kernel.moduleBuildDependencies;
 
-  makeFlags =
-    kernelModuleMakeFlags
-    ++ [
-      "KERNELRELEASE=${kernel.modDirVersion}"
-      "KERNEL_DIR=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build"
-      "INSTALL_MOD_PATH=$(out)"
-    ];
+  # Build explicitly against the kernel build tree (the generated Makefile has
+  # obj-m but no default target). ARCH must match the target.
+  buildPhase = ''
+    runHook preBuild
+    make -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build M=$(pwd) \
+      ARCH=${if kernel.stdenv.hostPlatform.isAarch64 then "arm64" else "x86_64"} \
+      KERNELRELEASE=${kernel.modDirVersion} modules
+    runHook postBuild
+  '';
 
-  installTargets = [ "modules_install" ];
+  installPhase = ''
+    runHook preInstall
+    make -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build M=$(pwd) \
+      ARCH=${if kernel.stdenv.hostPlatform.isAarch64 then "arm64" else "x86_64"} \
+      KERNELRELEASE=${kernel.modDirVersion} INSTALL_MOD_PATH=$out modules_install
+    runHook postInstall
+  '';
 
   # Module options: groups=GPIO66,GPIO67 ma=8 (set via the NixOS module's
   # extraModprobeConfig, matching the vendored n1x-audio-sdw-pads.conf).

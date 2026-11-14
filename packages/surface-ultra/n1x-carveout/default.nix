@@ -28,35 +28,38 @@ stdenv.mkDerivation {
   src = null; # unpacked manually from $sources below
 
   dontUnpack = true;
-  # kbuild requires M=<dir with the module Makefile>; the Makefile must live
-  # directly in the build root (no source/ subdir). NIX_STORE must be exported
-  # for the gcc wrapper (unbound-variable under set -u inside kbuild), and
-  # pahole must be on PATH for BTF generation of the .ko.
+  dontPatch = true; # postPatch (obj-m append) is unnecessary: the gist Makefile already has obj-m
+  # Individual pinned gist files (fetchurl attrs). kbuild requires M=<dir with
+  # the module Makefile>, so the Makefile must live directly in the build root
+  # and the symlink must exist BEFORE genericBuild runs (buildPhase executes
+  # make from the build root; preBuild would be too late because the kbuild
+  # descends into M= immediately). NIX_STORE is required by the gcc wrapper
+  # (set -eu), pahole is on PATH via kernel.moduleBuildDependencies for BTF.
   preBuild = ''
-    export NIX_STORE
     ln -sf ${sources.gist.n1xCarveoutMemmapC} n1x_carveout_memmap.c
     ln -sf ${sources.gist.n1xCarveoutMemmapMakefile} Makefile
   '';
 
   nativeBuildInputs = kernel.moduleBuildDependencies;
 
-
-  makeFlags =
-    kernelModuleMakeFlags
-    ++ [
-      "KERNELRELEASE=${kernel.modDirVersion}"
-      "KERNEL_DIR=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build"
-      "INSTALL_MOD_PATH=$(out)"
-    ];
-
-  # The Makefile in the gist is a minimal kbuild shim; ensure obj-m wiring.
-  postPatch = ''
-    if ! grep -q obj-m Makefile 2>/dev/null; then
-      printf 'obj-m := n1x_carveout_memmap.o\n' >> Makefile
-    fi
+  # Build explicitly against the kernel build tree: the upstream Makefile is a
+  # bare kbuild shim (obj-m only), so plain `make` has no targets. ARCH must
+  # match the target (aarch64 → arm64).
+  buildPhase = ''
+    runHook preBuild
+    make -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build M=$(pwd) \
+      ARCH=${if kernel.stdenv.hostPlatform.isAarch64 then "arm64" else "x86_64"} \
+      KERNELRELEASE=${kernel.modDirVersion} modules
+    runHook postBuild
   '';
 
-  installTargets = [ "modules_install" ];
+  installPhase = ''
+    runHook preInstall
+    make -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build M=$(pwd) \
+      ARCH=${if kernel.stdenv.hostPlatform.isAarch64 then "arm64" else "x86_64"} \
+      KERNELRELEASE=${kernel.modDirVersion} INSTALL_MOD_PATH=$out modules_install
+    runHook postInstall
+  '';
 
   meta = with lib; {
     description = "Creates struct pages (memremap MEMORY_DEVICE_PRIVATE) for the N1X GPU carveout ranges hidden from the EFI memory map";
