@@ -69,11 +69,15 @@ stdenvNoCC.mkDerivation {
     install -Dm755 surface-kbd-backlight $out/bin/surface-kbd-backlight
     install -Dm755 n1x-sdw-settle $out/bin/n1x-sdw-settle
 
+    # NOTE: n1x-edp-backlight/surface-kbd-backlight services reference
+    # /usr/local/sbin/<svc>; the /usr/local/bin/<svc> pattern does not exist
+    # in the upstream files, so it uses --replace-warn (silent no-op if
+    # absent) instead of --replace-fail, which hard-fails the build.
     for svc in n1x-edp-backlight n1x-sdw-settle n1x-touchpad-ptp surface-kbd-backlight; do
       install -Dm644 $svc.service $out/lib/systemd/system/$svc.service
       substituteInPlace $out/lib/systemd/system/$svc.service \
         --replace-fail "/usr/local/sbin/$svc" "$out/bin/$svc" \
-        --replace-fail "/usr/local/bin/$svc" "$out/bin/$svc"
+        --replace-warn "/usr/local/bin/$svc" "$out/bin/$svc"
     done
     runHook postInstall
   '';
