@@ -14,7 +14,7 @@ context lines as needed before building.
 
 --- a/drivers/hid/hid-multitouch.c
 +++ b/drivers/hid/hid-multitouch.c
-@@ -2103,6 +2103,11 @@ static const struct hid_device_id mt_devices[] = {
+@@ -2103,6 +2103,10 @@ static const struct hid_device_id mt_devices[] = {
  			HID_USB_DEVICE(USB_VENDOR_ID_CIRQUE,
  					USB_DEVICE_ID_CIRQUE_1215) },
  
