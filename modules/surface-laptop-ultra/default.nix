@@ -148,9 +148,10 @@ in
               # I2C HID (keyboard, touchpad, touchscreen)
               I2C_HID_ACPI = module;
               HID_MULTITOUCH = module;
-              # SoundWire audio (MT8901 AFE + RT1320/RT721)
-              SND_SOC_MT8901 = module;
-              SOUNDWIRE_MTK = module;
+              # SoundWire audio (MT8901 AFE + RT1320/RT721).
+              # NOTE: SND_SOC_MT8901/SOUNDWIRE_MTK are Omarchy-kernel options
+              # (NVIDIA MT8901 series) — NOT in vanilla 7.3.1; kconfig errors
+              # on unknown options, so they are deliberately omitted.
               SND_SOC_RT1320_SDW = module;
               SND_SOC_RT721_SDCA_SDW = module;
               # Serial (SAM EC link, NVDA0240 on 8250_mtk)
