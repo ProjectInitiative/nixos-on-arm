@@ -154,8 +154,9 @@ in
               # on unknown options, so they are deliberately omitted.
               SND_SOC_RT1320_SDW = module;
               SND_SOC_RT721_SDCA_SDW = module;
-              # Serial (SAM EC link, NVDA0240 on 8250_mtk)
-              SERIAL_8250_MTK = module;
+              # Serial: SERIAL_8250_MTK (SAM EC link UART glue) is NOT in
+              # vanilla 7.3.1 (Mediatek 8250 is Omarchy-kernel territory) —
+              # omitted to avoid the kconfig 'unused option' hard error.
             };
           };
         }
