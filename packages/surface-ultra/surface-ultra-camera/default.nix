@@ -34,22 +34,26 @@ stdenv.mkDerivation {
 
   sourceRoot = "source/kernel";
 
-  prePatch = ''
-    substituteInPlace Makefile \
-      --replace-fail "KERNELRELEASE ?=" "KERNELRELEASE ="
-  '';
-
   nativeBuildInputs = kernel.moduleBuildDependencies;
 
-  makeFlags =
-    kernelModuleMakeFlags
-    ++ [
-      "KERNELRELEASE=${kernel.modDirVersion}"
-      "KERNEL_DIR=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build"
-      "INSTALL_MOD_PATH=$(out)"
-    ];
+  # The upstream Makefile is a DKMS shim (KDIR ?= /lib/modules/$(uname -r)/build,
+  # `all` target = kbuild modules). Drive kbuild explicitly like the other SLU
+  # modules: M=<src kernel dir>, ARCH matching the target.
+  buildPhase = ''
+    runHook preBuild
+    make -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build M=$(pwd) \
+      ARCH=${if kernel.stdenv.hostPlatform.isAarch64 then "arm64" else "x86_64"} \
+      modules
+    runHook postBuild
+  '';
 
-  installTargets = [ "modules_install" ];
+  installPhase = ''
+    runHook preInstall
+    make -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build M=$(pwd) \
+      ARCH=${if kernel.stdenv.hostPlatform.isAarch64 then "arm64" else "x86_64"} \
+      INSTALL_MOD_PATH=$out modules_install
+    runHook postInstall
+  '';
 
   postInstall =
     lib.optionalString (cameraFirmware != null) ''

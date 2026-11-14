@@ -36,24 +36,24 @@ stdenv.mkDerivation {
 
   src = sources.surface-ultra-misc + "/ssam-helper";
 
-  prePatch = ''
-    substituteInPlace Makefile --replace-fail "KVER ?= \$(shell uname -r)" "KVER = ${kernel.modDirVersion}"
-  '';
-
   nativeBuildInputs = kernel.moduleBuildDependencies;
 
-  makeFlags =
-    kernelModuleMakeFlags
-    ++ [
-      "KDIR=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build"
-      "INSTALL_MOD_PATH=$(out)"
-    ];
+  # The upstream Makefile is a DKMS shim: KVER ?= $(uname -r), KDIR ?=
+  # /lib/modules/$(KVER)/build, `all` = kbuild modules. Drive kbuild
+  # explicitly (ARCH matching the target) like the other SLU modules.
+  buildPhase = ''
+    runHook preBuild
+    make -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build M=$(pwd) \
+      ARCH=${if kernel.stdenv.hostPlatform.isAarch64 then "arm64" else "x86_64"} \
+      modules
+    runHook postBuild
+  '';
 
-  # The upstream Makefile has no modules_install; do it explicitly.
   installPhase = ''
     runHook preInstall
-    make -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build \
-      M=$(pwd) INSTALL_MOD_PATH=$out modules_install
+    make -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build M=$(pwd) \
+      ARCH=${if kernel.stdenv.hostPlatform.isAarch64 then "arm64" else "x86_64"} \
+      INSTALL_MOD_PATH=$out modules_install
     runHook postInstall
   '';
 
