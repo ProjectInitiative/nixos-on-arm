@@ -14,14 +14,14 @@ context lines as needed before building.
 
 --- a/drivers/hid/hid-multitouch.c
 +++ b/drivers/hid/hid-multitouch.c
-@@ -2103,6 +2103,10 @@ static const struct hid_device_id mt_devices[] = {
- 			HID_USB_DEVICE(USB_VENDOR_ID_CIRQUE,
- 					USB_DEVICE_ID_CIRQUE_1215) },
- 
+@@ -2747,6 +2747,10 @@ static const struct hid_device_id mt_devices[] = {
+ 	{  .driver_data = MT_CLS_WIN_8,
+ 		HID_DEVICE(HID_BUS_ANY, HID_GROUP_MULTITOUCH_WIN_8,
+ 			HID_ANY_ID, HID_ANY_ID) },
++
 +	/* Microsoft Surface Laptop Ultra touchpad (MSHW0734) */
 +	{ .driver_data = MT_CLS_WIN_8,
 +	  HID_DEVICE(BUS_I2C, HID_GROUP_MULTITOUCH_WIN_8, 0x04f3, 0x3358) },
-+
  	{ }
  };
  MODULE_DEVICE_TABLE(hid, mt_devices);
