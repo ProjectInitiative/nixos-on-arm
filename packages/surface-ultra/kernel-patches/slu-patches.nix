@@ -36,10 +36,16 @@ let
       enable = true;
       comment = "Touchpad palm rejection: bind ELAN 04F3:3358 to MT_CLS_WIN_8 (HAND-WRITTEN hunk — verify against target tree)";
     };
-    "0005-soundwire-mtk-surface-ultra-mach.patch" = {
-      enable = true;
-      comment = "SoundWire machine table entry: 2x RT1320 + RT721 on SDW0 (speakers, mic array, jack)";
-    };
+    # 0005 (soundwire machine table) is DISABLED: it targets
+    # drivers/soundwire/mediatek/mtk-sdw-mach.c which exists only in the
+    # Omarchy kernel (NVIDIA MT8901 series), not vanilla 7.3.1. Audio
+    # (speakers/jack/mic) does not work on vanilla nixpkgs until this flake
+    # adopts that kernel or vendors the MediaTek driver. See the patch file
+    # for the preserved diff.
+    # "0005-soundwire-mtk-surface-ultra-mach.patch" = {
+    #   enable = true;
+    #   comment = "SoundWire machine table entry: 2x RT1320 + RT721 on SDW0";
+    # };
   };
 
   selected = lib.filterAttrs (_: meta: meta.enable) allPatches;
