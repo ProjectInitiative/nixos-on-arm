@@ -320,3 +320,49 @@ Adding `nixpkgs.buildPlatform = buildSystem;` triggers the formal cross-compiler
 * **🔄 Reproducible**: Fully declarative with Nix flakes
 
 ---
+
+## Surface Laptop Ultra (NVIDIA N1X)
+
+NixOS hardware-enablement for the Microsoft Surface Laptop Ultra (NVIDIA
+"RTX Spark" N1X, GB10 family, aarch64) — kernels, out-of-tree modules, and
+quirk wiring. No image builder here: it is a real laptop booted via GRUB.
+
+**Consumption** (from a host flake, e.g. dotfiles):
+
+```nix
+# flake.nix
+inputs.nixos-on-arm.url = "github:ProjectInitiative/nixos-on-arm";
+
+# host module
+{
+  imports = [ inputs.nixos-on-arm.nixosModules.surface-laptop-ultra ];
+  hardware.surface-laptop-ultra = {
+    enable = true;
+    # kernelPackages defaults to pkgs.linuxPackages_latest (linux 7.x);
+    # cameraFirmware = <path to nvCCU.img>;  # extract from Windows partition
+  };
+}
+```
+
+**What it wires** (all sources pinned in `packages/surface-ultra/surface-ultra-sources.nix`):
+
+| Piece | Purpose |
+|---|---|
+| Kernel patches 0001-0005 | SAM EC UART clock (52 MHz), SSAM registry, touchpad palm rejection, SoundWire machine table |
+| `n1x-carveout` | memmap for the EFI-hidden GPU carveout — must load before `nvidia` |
+| `n1x-sdw-pads` | SoundWire GPIO66/67 8 mA pad drive — must load before `soundwire_mtk` |
+| `surface-ultra-ssam-helper` | stock SSAM drivers + UART clock/client modules (update-resilient path) |
+| `surface-ultra-camera` | MT8991 ISP modules (OV02C10 + VD55G1); needs `nvCCU.img` firmware |
+| `n1x-thermald` | skin ≤ 45 °C via CPU freq capping (Windows MPTF parity) |
+| `surface-ultra-tools` | touchpad PTP rebind, eDP/keyboard backlights, SoundWire settle |
+
+GRUB (Limine resets the Project Mu firmware), proven kernel cmdline
+(`acpi_osi=!`, gpio_keys blacklist, s2idle), udev/hwdb/libinput quirks, and
+load-order modprobe softdeps are all set by the module.
+
+References: [teo-casares' gist](https://gist.github.com/teo-casares/8b64949638e1952602a7f435bb34d5b8)
+(full porting write-up), [ikegam/surface-ultra-camera](https://github.com/ikegam/surface-ultra-camera),
+[ikegam/surface-ultra-misc](https://github.com/ikegam/surface-ultra-misc),
+[NVIDIA carveout tracker](https://github.com/NVIDIA/open-gpu-kernel-modules/issues/1521).
+
+Ad-hoc package builds: `nix build .#packages.aarch64-linux.surface-ultra-all`.
