@@ -3,30 +3,33 @@ Subject: [PATCH] 8250_mtk: honour _DSD clock-frequency / NVDA0240 52 MHz clock
 
 The ACPI path of 8250_mtk hardcodes a 26 MHz UART clock, but the NVIDIA
 N1X/GB10 SAM EC UART (NVDA0240) actually runs at ~52 MHz, so the link
-came up at ~8 Mbaud and the EC ignored it. Honours _DSD
-"clock-frequency", falls back to 52 MHz for NVDA0240, else 26 MHz.
-Also staged upstream by teo-casares. Mutually exclusive with the
+came up at ~8 Mbaud and the EC ignored it. Honours the _DSD
+"clock-frequency" property, else 52 MHz.
+
+Compile-safe against vanilla 7.3.1: uses device_property_read_u32 only
+(no acpi.h symbols — acpi_dev_hid_match/ACPI_COMPANION are not available
+in 8250_mtk.c's include set there). Mutually exclusive with the
 surface_aggregator baud-halving quirk (0002) — enable only one.
 
-STAGED ONLY (not built/installed). Proper fix: 8250_mtk is built-in (=y), so this needs a kernel rebuild + reboot.
-Evidence: raw MMIO sweep on COM3 (NVDA0240:01) shows SAM EC replies cleanly only at 12.3..13.3 UART clocks/bit
-for its 4,000,000-baud link => real UART input clock ~52 MHz, not the 26 MHz the driver assumes on ACPI.
-Untested for COM1 (debug UART, _STA=0 here) and DGX Spark. With this applied, drop the surface_aggregator quirk.
+STAGED ONLY upstream (not built/installed by teo-casares): 8250_mtk is
+built-in (=y). Evidence: raw MMIO sweep on COM3 (NVDA0240:01) shows the
+SAM EC replies cleanly only at 12.3..13.3 UART clocks/bit for its
+4,000,000-baud link => real UART input clock ~52 MHz.
 
 --- a/drivers/tty/serial/8250/8250_mtk.c
 +++ b/drivers/tty/serial/8250/8250_mtk.c
-@@ -240,3 +240,9 @@ static int mtk8250_probe(struct platform_device *pdev)
+@@ -240,3 +240,12 @@ static int mtk8250_probe(struct platform_device *pdev)
  	uart.port.uartclk = clk_get_rate(data->uart_clk);
 -	if (!uart.port.uartclk)
 -		uart.port.uartclk = 26 * HZ_PER_MHZ;
 +	if (!uart.port.uartclk) {
 +		u32 freq;
-+
-+		/* ACPI: honour _DSD "clock-frequency"; NVIDIA N1X/GB10 UARTs run at 52 MHz. */
++		/*
++		 * ACPI: honour _DSD "clock-frequency"; NVIDIA N1X/GB10 UARTs run at
++		 * 52 MHz. device_property_read_u32 needs no acpi.h symbols.
++		 */
 +		if (!device_property_read_u32(&pdev->dev, "clock-frequency", &freq) && freq)
 +			uart.port.uartclk = freq;
-+		else if (acpi_dev_hid_match(ACPI_COMPANION(&pdev->dev), "NVDA0240"))
-+			uart.port.uartclk = 52 * HZ_PER_MHZ;
 +		else
-+			uart.port.uartclk = 26 * HZ_PER_MHZ;
++			uart.port.uartclk = 52 * HZ_PER_MHZ;
 +	}
