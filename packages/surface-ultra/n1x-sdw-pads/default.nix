@@ -27,10 +27,11 @@ stdenv.mkDerivation {
   src = null; # unpacked manually from $sources below
 
   dontUnpack = true;
+  # kbuild requires M=<dir with the module Makefile> — files live in the build
+  # root, no subdir. NIX_STORE must be exported for the gcc wrapper.
   preBuild = ''
-    mkdir -p source
-    ln -s ${sources.gist.sdwPadDriveC} source/sdw_pad_drive.c
-    cd source
+    export NIX_STORE
+    ln -s ${sources.gist.sdwPadDriveC} sdw_pad_drive.c
     printf 'obj-m := sdw_pad_drive.o\n' > Makefile
   '';
 

@@ -28,14 +28,18 @@ stdenv.mkDerivation {
   src = null; # unpacked manually from $sources below
 
   dontUnpack = true;
+  # kbuild requires M=<dir with the module Makefile>; the Makefile must live
+  # directly in the build root (no source/ subdir). NIX_STORE must be exported
+  # for the gcc wrapper (unbound-variable under set -u inside kbuild), and
+  # pahole must be on PATH for BTF generation of the .ko.
   preBuild = ''
-    mkdir -p source
-    ln -s ${sources.gist.n1xCarveoutMemmapC} source/n1x_carveout_memmap.c
-    ln -s ${sources.gist.n1xCarveoutMemmapMakefile} source/Makefile
-    cd source
+    export NIX_STORE
+    ln -s ${sources.gist.n1xCarveoutMemmapC} n1x_carveout_memmap.c
+    ln -s ${sources.gist.n1xCarveoutMemmapMakefile} Makefile
   '';
 
   nativeBuildInputs = kernel.moduleBuildDependencies;
+
 
   makeFlags =
     kernelModuleMakeFlags
