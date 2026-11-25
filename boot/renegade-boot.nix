@@ -32,7 +32,10 @@
   systemd.services."usb-enable" = {
     description = "Enable USB Power via GPIO";
     enable = true;
-    script = "${pkgs.libgpiod}/bin/gpioset 1 26=1";
+    # libgpiod v2 CLI: chip must be passed via -c (v1 positional syntax fails
+    # with "invalid line value"). --daemonize keeps the line asserted, since
+    # v2 does not guarantee state after the process exits.
+    script = "${pkgs.libgpiod}/bin/gpioset --daemonize --chip 1 26=1";
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       Type = "oneshot";
