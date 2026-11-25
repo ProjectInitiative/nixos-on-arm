@@ -28,21 +28,10 @@
     "earlycon=uart8250,mmio32,0xff130000"
   ];
 
-  # USB Power Enable for Renegade (GPIO1_D2 = 26)
-  systemd.services."usb-enable" = {
-    description = "Enable USB Power via GPIO";
-    enable = true;
-    # libgpiod v2 CLI: chip must be passed via -c (v1 positional syntax fails
-    # with "invalid line value"). --daemonize keeps the line asserted, since
-    # v2 does not guarantee state after the process exits.
-    script = "${pkgs.libgpiod}/bin/gpioset --daemonize --chip 1 26=1";
-    wantedBy = [ "multi-user.target" ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-    };
-  };
-
+  # NOTE: no usb-enable service here. GPIO1_D2 (line 26 on /dev/gpiochip1) is
+  # claimed by the kernel as regulator-vcc-host1-5v, and vcc_host1_5v is
+  # enabled by the regulator framework — USB host 5V power is already managed
+  # by the kernel, so a userspace gpioset hack just fails with EBUSY.
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
   system.stateVersion = lib.mkDefault "25.11";
 }
